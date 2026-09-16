@@ -67,6 +67,8 @@ export interface ShadowBackgroundProps
   penumbra?: number;
   contactHardening?: boolean;
   shadowOpacity?: number;
+  shadowColor?: string;
+  basePlateMotion?: boolean;
   lightDirection?: [number, number, number];
   fit?: "cover" | "contain" | "fill";
   motion?: MotionPreset | MotionConfig;
@@ -148,13 +150,14 @@ export function evaluateHardwareGating(): boolean {
  * Helper constructing the Canvas2D shadow engine fallback element.
  */
 export function renderCanvas2dFallback(
-  basePlate: string,
+  basePlate: string | undefined,
   casterSrc: string,
   offsetX: number,
   offsetY: number,
   blurRadius: number,
   shadowOpacity: number,
-  ambientScale = 1.0
+  ambientScale = 1.0,
+  shadowColor = "#000000"
 ): React.ReactElement<Record<string, unknown>> {
   return (
     <Canvas2dShadowEngine
@@ -164,6 +167,7 @@ export function renderCanvas2dFallback(
       offsetY={offsetY}
       blurRadius={blurRadius}
       shadowOpacity={shadowOpacity}
+      shadowColor={shadowColor}
       ambientScale={ambientScale}
     />
   );
@@ -244,7 +248,8 @@ export function resolveScrollInfluence(influence?: boolean | number): number {
  */
 export interface ResolveEngineOptions {
   caster: ShadowCasterConfig;
-  basePlate: string;
+  basePlate?: string;
+  shadowColor?: string;
   penumbra?: number;
   contactHardening?: boolean;
   shadowOpacity?: number;
@@ -261,6 +266,7 @@ export interface ResolveEngineOptions {
 export function resolveShadowEngine({
   caster,
   basePlate,
+  shadowColor = "#000000",
   penumbra = 24,
   contactHardening = true,
   shadowOpacity = 0.65,
@@ -291,7 +297,9 @@ export function resolveShadowEngine({
         offsetX,
         offsetY,
         effectivePenumbra,
-        effectiveOpacity
+        effectiveOpacity,
+        1.0,
+        shadowColor
       );
 
       if (useCanvasFallback) {
@@ -309,6 +317,7 @@ export function resolveShadowEngine({
             offsetY={offsetY}
             blurRadius={effectivePenumbra}
             shadowOpacity={effectiveOpacity}
+            shadowColor={shadowColor}
             ambientScale={1.0}
             contactHardening={contactHardening}
           />
@@ -320,6 +329,7 @@ export function resolveShadowEngine({
       return (
         <ProceduralKomorebiEngine
           basePlate={basePlate}
+          shadowColor={shadowColor}
           shadowOpacity={shadowOpacity * (caster.density ?? 1.0)}
           scale={caster.scale ?? 3.5}
           speed={caster.speed ?? 0.5}
@@ -334,6 +344,7 @@ export function resolveShadowEngine({
       return (
         <ProceduralBranchEngine
           basePlate={basePlate}
+          shadowColor={shadowColor}
           shadowOpacity={shadowOpacity}
           penumbraRadius={effectivePenumbra}
           windStrength={windStrength}
@@ -365,6 +376,8 @@ export const ShadowBackground = React.forwardRef<
     penumbra = 24,
     contactHardening = true,
     shadowOpacity = 0.65,
+    shadowColor = "#000000",
+    basePlateMotion = false,
     lightDirection = [20, 25, 1],
     fit = "cover",
     motion = "smooth",
@@ -521,19 +534,22 @@ export const ShadowBackground = React.forwardRef<
     };
   }, [effectiveTier, onTierChange]);
 
-  const effectivePoster = poster || basePlate;
+  const isDynamicActive =
+    effectiveTier !== "force-static" &&
+    effectiveTier !== "static-poster" &&
+    isDynamicMounted;
+  const isMotionActive = isDynamicActive && !isMotionDisabled;
+
+  // Poster-to-basePlate handover:
+  // Render poster during SSR / initial static state to lock LCP without layout shift.
+  // Switch to basePlate once dynamic canvas mounts to prevent double-shadow artifacts.
+  const activeImageSrc = poster && !isDynamicActive ? poster : basePlate;
   const fitClass =
     fit === "contain"
       ? "object-contain"
       : fit === "fill"
       ? "object-fill"
       : "object-cover";
-
-  const isDynamicActive =
-    effectiveTier !== "force-static" &&
-    effectiveTier !== "static-poster" &&
-    isDynamicMounted;
-  const isMotionActive = isDynamicActive && !isMotionDisabled;
 
   const containerStyle: React.CSSProperties = {
     ...(style as React.CSSProperties),
@@ -548,6 +564,7 @@ export const ShadowBackground = React.forwardRef<
         .join(" ")}
       data-fit={fit}
       data-motion-active={isMotionActive ? "true" : "false"}
+      data-base-plate-motion={basePlateMotion ? "true" : "false"}
       data-blend-mode={blendMode}
       style={containerStyle}
       {...(isMotionActive
@@ -562,25 +579,34 @@ export const ShadowBackground = React.forwardRef<
       {...restProps}
     >
       {/* Background canvas / poster layer */}
-      <div className="absolute inset-0 pointer-events-none z-0">
+      <div
+        className="absolute inset-0 pointer-events-none z-0 transform-gpu"
+        style={
+          basePlateMotion && isMotionActive
+            ? {
+                transform: `perspective(1000px) rotateX(${output.skewY}deg) rotateY(${output.skewX}deg)`,
+              }
+            : undefined
+        }
+      >
         {/* Static poster image: SSR-safe next/image with priority for zero LCP and 0.000 CLS */}
         <Image
-          src={effectivePoster}
+          src={activeImageSrc}
           alt=""
           fill
           priority
           sizes="100vw"
-          className={fitClass}
+          className={[fitClass, "transition-opacity duration-300"].filter(Boolean).join(" ")}
           aria-hidden="true"
         />
 
         {/* Dynamic Shadow Synthesis Engine */}
         {isDynamicActive && (
           <div
-            className="absolute inset-0 transition-opacity duration-300 transform-gpu"
+            className="absolute inset-[-5%] w-[110%] h-[110%] transition-opacity duration-300 transform-gpu pointer-events-none"
             style={{
               mixBlendMode: blendMode,
-              ...(isMotionActive
+              ...(!basePlateMotion && isMotionActive
                 ? {
                     transform: `perspective(1000px) rotateX(${output.skewY}deg) rotateY(${output.skewX}deg)`,
                   }
@@ -589,7 +615,8 @@ export const ShadowBackground = React.forwardRef<
           >
             {resolveShadowEngine({
               caster,
-              basePlate,
+              basePlate: basePlateMotion ? basePlate : undefined,
+              shadowColor,
               penumbra,
               contactHardening,
               shadowOpacity,
