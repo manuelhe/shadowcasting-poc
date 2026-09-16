@@ -9,15 +9,29 @@ vi.mock("@/lib/procedural/komorebi", async () => {
 vi.mock("@/lib/procedural/branch-skeleton", async () => {
   return await vi.importActual("../lib/procedural/branch-skeleton");
 });
+vi.mock("@/lib/motion/motion-controller", async () => {
+  return await vi.importActual("../lib/motion/motion-controller");
+});
+vi.mock("@/lib/motion/spring", async () => {
+  return await vi.importActual("../lib/motion/spring");
+});
+vi.mock("@/hooks/useMotionController", async () => {
+  return await vi.importActual("../hooks/useMotionController");
+});
 
 import {
   ShadowBackground,
   evaluateHardwareGating,
   isWebGLSupported,
   resolveShadowEngine,
+  resolveScrollInfluence,
   EngineErrorBoundary,
   ShadowCasterConfig,
+  type MotionPreset,
+  type MotionConfig,
 } from "./ShadowBackground";
+import { SPRING_PRESETS } from "../lib/motion/spring";
+import { MotionController, MotionOutput } from "../lib/motion/motion-controller";
 import { WebGlShadowEngine, type WebGlShadowEngineProps } from "./engines/WebGlShadowEngine";
 import { Canvas2dShadowEngine } from "./engines/Canvas2dShadowEngine";
 import { type ShadowEngineProps } from "./engines/CssShadowEngine";
@@ -351,6 +365,7 @@ describe("<ShadowBackground />", () => {
       });
 
       globalThis.document = {
+        documentElement: { scrollHeight: 1000, clientHeight: 600 } as unknown as HTMLElement,
         createElement: (tag: string) => new mockElementClass(1, tag.toUpperCase()),
         createTextNode: (text: string) => ({ nodeType: 3, nodeValue: text }),
         createComment: () => ({ nodeType: 8 }),
@@ -380,6 +395,10 @@ describe("<ShadowBackground />", () => {
         Image: MockBrowserImage as unknown as typeof Image,
         location: { href: "http://localhost:3000/" },
         devicePixelRatio: 1,
+        scrollY: 0,
+        innerHeight: 600,
+        addEventListener: () => {},
+        removeEventListener: () => {},
         requestAnimationFrame: globalThis.requestAnimationFrame,
         cancelAnimationFrame: globalThis.cancelAnimationFrame,
       } as unknown as Window & typeof globalThis;
@@ -620,6 +639,573 @@ describe("<ShadowBackground />", () => {
 
     it("correctly identifies WebGL support status via isWebGLSupported()", () => {
       expect(isWebGLSupported()).toBe(false);
+    });
+  });
+
+  describe("7. Interactive Motion, Spring Physics & 3D Parallax Integration", () => {
+    let mockElementClass: new (nodeType?: number, nodeName?: string) => {
+      nodeType: number;
+      nodeName: string;
+      tagName: string;
+      childNodes: unknown[];
+      ownerDocument: unknown;
+      style: Record<string, string>;
+      attributes: Record<string, string>;
+      width: number;
+      height: number;
+      appendChild: (child: unknown) => unknown;
+      removeChild: (child: unknown) => unknown;
+      insertBefore: (child: unknown, ref: unknown) => unknown;
+      setAttribute: (name: string, value: string) => void;
+      getAttribute: (name: string) => string | null;
+      removeAttribute: (name: string) => void;
+      addEventListener: () => void;
+      removeEventListener: () => void;
+      getContext: () => unknown;
+      getBoundingClientRect: () => { width: number; height: number; top: number; left: number; right: number; bottom: number };
+    };
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+
+      mockElementClass = class MockNode {
+        nodeType: number;
+        nodeName: string;
+        tagName: string;
+        childNodes: unknown[];
+        ownerDocument: unknown;
+        style: Record<string, string>;
+        attributes: Record<string, string>;
+        width: number = 800;
+        height: number = 600;
+        constructor(nodeType = 1, nodeName = "DIV") {
+          this.nodeType = nodeType;
+          this.nodeName = nodeName;
+          this.tagName = nodeName;
+          this.childNodes = [];
+          this.ownerDocument = globalThis.document;
+          this.style = {};
+          this.attributes = {};
+        }
+        appendChild(child: unknown) {
+          this.childNodes.push(child);
+          return child;
+        }
+        removeChild(child: unknown) {
+          const idx = this.childNodes.indexOf(child);
+          if (idx !== -1) this.childNodes.splice(idx, 1);
+          return child;
+        }
+        insertBefore(child: unknown) {
+          this.childNodes.push(child);
+          return child;
+        }
+        setAttribute(name: string, value: string) {
+          this.attributes[name] = String(value);
+        }
+        getAttribute(name: string) {
+          return this.attributes[name] ?? null;
+        }
+        removeAttribute(name: string) {
+          delete this.attributes[name];
+        }
+        addEventListener() {}
+        removeEventListener() {}
+        getContext() {
+          return {
+            fillRect: () => {},
+            clearRect: () => {},
+            drawImage: () => {},
+            save: () => {},
+            restore: () => {},
+            beginPath: () => {},
+            arc: () => {},
+            fill: () => {},
+            stroke: () => {},
+            moveTo: () => {},
+            lineTo: () => {},
+            translate: () => {},
+            rotate: () => {},
+            createRadialGradient: () => ({ addColorStop: () => {} }),
+          };
+        }
+        getBoundingClientRect() {
+          return { width: 800, height: 600, top: 0, left: 0, right: 800, bottom: 600 };
+        }
+      };
+
+      const head = new mockElementClass(1, "HEAD");
+
+      globalThis.Element = mockElementClass as unknown as typeof Element;
+      globalThis.HTMLElement = mockElementClass as unknown as typeof HTMLElement;
+      globalThis.HTMLDivElement = mockElementClass as unknown as typeof HTMLDivElement;
+      globalThis.HTMLImageElement = mockElementClass as unknown as typeof HTMLImageElement;
+      globalThis.HTMLCanvasElement = mockElementClass as unknown as typeof HTMLCanvasElement;
+      globalThis.HTMLIFrameElement = class {} as unknown as typeof HTMLIFrameElement;
+      globalThis.ResizeObserver = class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      } as unknown as typeof ResizeObserver;
+
+      globalThis.requestAnimationFrame = vi.fn((cb: FrameRequestCallback) => {
+        return setTimeout(cb, 16) as unknown as number;
+      });
+      globalThis.cancelAnimationFrame = vi.fn((id: number) => {
+        clearTimeout(id as unknown as NodeJS.Timeout);
+      });
+
+      globalThis.document = {
+        documentElement: { scrollHeight: 1000, clientHeight: 600 } as unknown as HTMLElement,
+        createElement: (tag: string) => new mockElementClass(1, tag.toUpperCase()),
+        createTextNode: (text: string) => ({ nodeType: 3, nodeValue: text }),
+        createComment: () => ({ nodeType: 8 }),
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        querySelector: () => null,
+        querySelectorAll: () => [],
+        getElementsByTagName: () => [],
+        activeElement: null,
+        head,
+        defaultView: globalThis,
+        HTMLIFrameElement: class {},
+      } as unknown as Document;
+
+      class MockBrowserImage {
+        src = "";
+        onload: (() => void) | null = null;
+        constructor() {
+          setTimeout(() => {
+            if (this.onload) this.onload();
+          }, 0);
+        }
+      }
+
+      globalThis.window = {
+        ...globalThis,
+        Image: MockBrowserImage as unknown as typeof Image,
+        location: { href: "http://localhost:3000/" },
+        devicePixelRatio: 1,
+        scrollY: 0,
+        innerHeight: 600,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        requestAnimationFrame: globalThis.requestAnimationFrame,
+        cancelAnimationFrame: globalThis.cancelAnimationFrame,
+      } as unknown as Window & typeof globalThis;
+
+      (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+      vi.restoreAllMocks();
+      delete (globalThis as { window?: unknown }).window;
+      delete (globalThis as { document?: unknown }).document;
+      delete (globalThis as { ResizeObserver?: unknown }).ResizeObserver;
+      delete (globalThis as { requestAnimationFrame?: unknown }).requestAnimationFrame;
+      delete (globalThis as { cancelAnimationFrame?: unknown }).cancelAnimationFrame;
+    });
+
+    it("configures spring physics from string presets (smooth, snappy, inertial, bouncy)", async () => {
+      const motionModule = await import("../hooks/useMotionController");
+      const spy = vi.spyOn(motionModule, "useMotionController");
+
+      const { createRoot } = await import("react-dom/client");
+      const rootNode = new mockElementClass(1, "DIV");
+      const root = createRoot(rootNode as unknown as HTMLElement);
+
+      // 1. Default (smooth)
+      React.act(() => {
+        root.render(
+          <ShadowBackground
+            basePlate="/images/base.svg"
+            caster={{ type: "branch" }}
+          />
+        );
+      });
+      expect(spy).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          springConfig: SPRING_PRESETS.smooth,
+          scrollInfluencePx: 25,
+          ambientMotion: true,
+        })
+      );
+
+      // 2. Snappy preset
+      React.act(() => {
+        root.render(
+          <ShadowBackground
+            basePlate="/images/base.svg"
+            caster={{ type: "branch" }}
+            motion="snappy"
+          />
+        );
+      });
+      expect(spy).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          springConfig: SPRING_PRESETS.snappy,
+        })
+      );
+
+      // 3. Inertial preset
+      React.act(() => {
+        root.render(
+          <ShadowBackground
+            basePlate="/images/base.svg"
+            caster={{ type: "branch" }}
+            motion="inertial"
+          />
+        );
+      });
+      expect(spy).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          springConfig: SPRING_PRESETS.inertial,
+        })
+      );
+
+      // 4. Bouncy preset
+      React.act(() => {
+        root.render(
+          <ShadowBackground
+            basePlate="/images/base.svg"
+            caster={{ type: "branch" }}
+            motion="bouncy"
+          />
+        );
+      });
+      expect(spy).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          springConfig: SPRING_PRESETS.bouncy,
+        })
+      );
+
+      React.act(() => {
+        root.unmount();
+      });
+    });
+
+    it("supports granular object MotionConfig with custom spring parameters and flags", async () => {
+      const motionModule = await import("../hooks/useMotionController");
+      const spy = vi.spyOn(motionModule, "useMotionController");
+
+      const { createRoot } = await import("react-dom/client");
+      const rootNode = new mockElementClass(1, "DIV");
+      const root = createRoot(rootNode as unknown as HTMLElement);
+
+      React.act(() => {
+        root.render(
+          <ShadowBackground
+            basePlate="/images/base.svg"
+            caster={{ type: "branch" }}
+            motion={{
+              preset: "snappy",
+              stiffness: 320,
+              damping: 35,
+              mass: 1.4,
+              ambient: false,
+              ambientSpeed: 1.2,
+              ambientStrength: 15,
+              maxDisplacementPx: 64,
+              scrollInfluence: 42,
+            }}
+          />
+        );
+      });
+
+      expect(spy).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          springConfig: {
+            stiffness: 320,
+            damping: 35,
+            mass: 1.4,
+          },
+          ambientMotion: false,
+          ambientSpeed: 1.2,
+          ambientStrength: 15,
+          maxDisplacementPx: 64,
+          scrollInfluencePx: 42,
+        })
+      );
+
+      // Type-check exported motion contracts
+      const typedPreset: MotionPreset = "snappy";
+      const typedConfig: MotionConfig = { preset: typedPreset, stiffness: 200 };
+      expect(typedConfig.preset).toBe("snappy");
+
+      // Boolean scrollInfluence mappings
+      expect(resolveScrollInfluence(true)).toBe(25);
+      expect(resolveScrollInfluence(false)).toBe(0);
+      expect(resolveScrollInfluence(50)).toBe(50);
+      expect(resolveScrollInfluence(undefined)).toBe(25);
+
+      React.act(() => {
+        root.unmount();
+      });
+    });
+
+    it("disables motion listeners, touchAction styling, and dynamic offsets when motion='none'", async () => {
+      const motionModule = await import("../hooks/useMotionController");
+      const spy = vi.spyOn(motionModule, "useMotionController");
+
+      let idleCallback: (() => void) | null = null;
+      (window as unknown as { requestIdleCallback: (cb: () => void) => number }).requestIdleCallback = vi.fn(
+        (cb: () => void) => {
+          idleCallback = cb;
+          return 1;
+        }
+      );
+
+      const { createRoot } = await import("react-dom/client");
+      const rootNode = new mockElementClass(1, "DIV");
+      const root = createRoot(rootNode as unknown as HTMLElement);
+
+      React.act(() => {
+        root.render(
+          <ShadowBackground
+            basePlate="/images/base.svg"
+            caster={{ type: "image", src: "/images/caster-branch.svg" }}
+            degradation="force-dynamic"
+            motion="none"
+            lightDirection={[15, 25, 1]}
+          />
+        );
+      });
+
+      // useMotionController received disabled ambient motion and 0 scroll influence
+      expect(spy).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          ambientMotion: false,
+          scrollInfluencePx: 0,
+        })
+      );
+
+      // Hydrate dynamic engine
+      React.act(() => {
+        if (idleCallback) (idleCallback as () => void)();
+      });
+
+      const stageDiv = rootNode.childNodes[0] as InstanceType<typeof mockElementClass>;
+      expect(stageDiv.getAttribute("data-motion-active")).toBe("false");
+      expect(stageDiv.style.touchAction).toBeUndefined();
+
+      // The dynamic engine renders with static base offsets (lightDirection), not dynamic motion
+      const bgContainer = stageDiv.childNodes[0] as InstanceType<typeof mockElementClass>;
+      const engineWrapper = bgContainer.childNodes[1] as InstanceType<typeof mockElementClass>;
+      expect(engineWrapper).toBeDefined();
+      expect(engineWrapper.style.transform).toBeUndefined();
+
+      React.act(() => {
+        root.unmount();
+      });
+    });
+
+    it("disables motion when motion={{ preset: 'none' }}", async () => {
+      let idleCallback: (() => void) | null = null;
+      (window as unknown as { requestIdleCallback: (cb: () => void) => number }).requestIdleCallback = vi.fn(
+        (cb: () => void) => {
+          idleCallback = cb;
+          return 1;
+        }
+      );
+
+      const { createRoot } = await import("react-dom/client");
+      const rootNode = new mockElementClass(1, "DIV");
+      const root = createRoot(rootNode as unknown as HTMLElement);
+
+      React.act(() => {
+        root.render(
+          <ShadowBackground
+            basePlate="/images/base.svg"
+            caster={{ type: "branch" }}
+            degradation="force-dynamic"
+            motion={{ preset: "none" }}
+          />
+        );
+      });
+
+      React.act(() => {
+        if (idleCallback) (idleCallback as () => void)();
+      });
+
+      const stageDiv = rootNode.childNodes[0] as InstanceType<typeof mockElementClass>;
+      expect(stageDiv.getAttribute("data-motion-active")).toBe("false");
+      expect(stageDiv.style.touchAction).toBeUndefined();
+
+      React.act(() => {
+        root.unmount();
+      });
+    });
+
+    it("registers touchAction: none and coordinates event handlers when dynamic motion is active", async () => {
+      let idleCallback: (() => void) | null = null;
+      (window as unknown as { requestIdleCallback: (cb: () => void) => number }).requestIdleCallback = vi.fn(
+        (cb: () => void) => {
+          idleCallback = cb;
+          return 1;
+        }
+      );
+
+      const { createRoot } = await import("react-dom/client");
+      const rootNode = new mockElementClass(1, "DIV");
+      const root = createRoot(rootNode as unknown as HTMLElement);
+
+      React.act(() => {
+        root.render(
+          <ShadowBackground
+            basePlate="/images/base.svg"
+            caster={{ type: "branch" }}
+            degradation="force-dynamic"
+            motion="smooth"
+          />
+        );
+      });
+
+      // Hydrate dynamic tier
+      React.act(() => {
+        if (idleCallback) (idleCallback as () => void)();
+      });
+
+      const stageDiv = rootNode.childNodes[0] as InstanceType<typeof mockElementClass>;
+      expect(stageDiv.getAttribute("data-motion-active")).toBe("true");
+      expect(stageDiv.style.touchAction).toBe("none");
+
+      React.act(() => {
+        root.unmount();
+      });
+    });
+
+    it("verifies pointer and touch handlers update coordinates through the motion controller", () => {
+      const controller = new MotionController({
+        springConfig: SPRING_PRESETS.snappy,
+        maxDisplacementPx: 50,
+        ambientMotion: false,
+      });
+
+      // Pointer movement to right edge: target moves, shadow offsets to left
+      controller.handlePointerMove(200, 100, { left: 0, top: 0, width: 200, height: 200 });
+      controller.step(0.016);
+      expect(controller.getOutput().shadowOffsetX).toBeLessThan(0);
+
+      // Pointer leave: returns to center neutral
+      controller.handlePointerLeave();
+      for (let i = 0; i < 60; i++) controller.step(0.016);
+      expect(controller.getOutput().shadowOffsetX).toBeCloseTo(0, 1);
+
+      // Touch interaction: touch down & drag
+      controller.handleTouchStart(100, 100, { left: 0, top: 0, width: 200, height: 200 });
+      controller.handleTouchMove(50, 100, { left: 0, top: 0, width: 200, height: 200 });
+      controller.step(0.016);
+      expect(controller.getOutput().shadowOffsetX).toBeGreaterThan(0);
+
+      // Touch end releases back to neutral
+      controller.handleTouchEnd();
+      for (let i = 0; i < 60; i++) controller.step(0.016);
+      expect(controller.getOutput().shadowOffsetX).toBeCloseTo(0, 1);
+    });
+
+    it("applies 3D perspective distortion style to the dynamic shadow canvas container layer", async () => {
+      let idleCallback: (() => void) | null = null;
+      (window as unknown as { requestIdleCallback: (cb: () => void) => number }).requestIdleCallback = vi.fn(
+        (cb: () => void) => {
+          idleCallback = cb;
+          return 1;
+        }
+      );
+
+      const { createRoot } = await import("react-dom/client");
+      const rootNode = new mockElementClass(1, "DIV");
+      const root = createRoot(rootNode as unknown as HTMLElement);
+
+      React.act(() => {
+        root.render(
+          <ShadowBackground
+            basePlate="/images/base.svg"
+            caster={{ type: "branch" }}
+            degradation="force-dynamic"
+            motion="smooth"
+          />
+        );
+      });
+
+      // Hydrate dynamic tier
+      React.act(() => {
+        if (idleCallback) (idleCallback as () => void)();
+      });
+
+      const stageDiv = rootNode.childNodes[0] as InstanceType<typeof mockElementClass>;
+      const bgContainer = stageDiv.childNodes[0] as InstanceType<typeof mockElementClass>;
+      const renderLayer = bgContainer.childNodes[1] as InstanceType<typeof mockElementClass>;
+
+      expect(renderLayer).toBeDefined();
+      expect(renderLayer.style.transform).toBe("perspective(1000px) rotateX(0deg) rotateY(0deg)");
+
+      React.act(() => {
+        root.unmount();
+      });
+    });
+
+    it("dilates penumbra and applies dynamic offsets across all engines via resolveShadowEngine", () => {
+      const mockMotionOutput: MotionOutput = {
+        shadowOffsetX: -28.4,
+        shadowOffsetY: 16.8,
+        penumbraMultiplier: 1.35,
+        skewX: -3.2,
+        skewY: 4.8,
+        isAtRest: false,
+        normalizedUV: { u: 0.85, v: 0.25 },
+        virtualLightDirection: { x: -0.5, y: 0.3, z: 0.8 },
+        scrollProgress: 0.4,
+        scrollDeltaY: 80,
+        rawPointer: { x: 350, y: 150 },
+      };
+
+      // 1. WebGlShadowEngine: receives dynamic offsets and dilated penumbra
+      const webglEl = resolveShadowEngine({
+        caster: { type: "image", src: "/caster.png" },
+        basePlate: "/base.jpg",
+        penumbra: 20,
+        useCanvasFallback: false,
+        motionOutput: mockMotionOutput,
+      });
+      const webglChild = (webglEl.props as unknown as { children: React.ReactElement }).children;
+      const webglProps = webglChild.props as unknown as WebGlShadowEngineProps;
+      expect(webglProps.offsetX).toBe(-28.4);
+      expect(webglProps.offsetY).toBe(16.8);
+      expect(webglProps.blurRadius).toBe(Math.round(20 * 1.35)); // 27px
+
+      // 2. Canvas2dShadowEngine fallback: receives dynamic offsets and dilated penumbra
+      const canvasEl = resolveShadowEngine({
+        caster: { type: "image", src: "/caster.png" },
+        basePlate: "/base.jpg",
+        penumbra: 20,
+        useCanvasFallback: true,
+        motionOutput: mockMotionOutput,
+      });
+      const canvasProps = canvasEl.props as unknown as ShadowEngineProps;
+      expect(canvasProps.offsetX).toBe(-28.4);
+      expect(canvasProps.offsetY).toBe(16.8);
+      expect(canvasProps.blurRadius).toBe(27);
+
+      // 3. ProceduralKomorebiEngine: wind angle tilts based on offset (-28.4 * 1.5 + 45 = 2.4°)
+      const komorebiEl = resolveShadowEngine({
+        caster: { type: "komorebi" },
+        basePlate: "/base.jpg",
+        motionOutput: mockMotionOutput,
+      });
+      const komorebiProps = komorebiEl.props as unknown as ProceduralKomorebiProps;
+      expect(komorebiProps.windAngle).toBeCloseTo(45 + -28.4 * 1.5, 2);
+
+      // 4. ProceduralBranchEngine: receives dilated penumbraRadius and modulated windStrength
+      const branchEl = resolveShadowEngine({
+        caster: { type: "branch" },
+        basePlate: "/base.jpg",
+        penumbra: 16,
+        motionOutput: mockMotionOutput,
+      });
+      const branchProps = branchEl.props as unknown as ProceduralBranchProps;
+      expect(branchProps.penumbraRadius).toBe(Math.round(16 * 1.35)); // 22px
+      expect(branchProps.windStrength).toBeCloseTo(0.8 + Math.abs(-28.4) * 0.02, 2);
     });
   });
 });

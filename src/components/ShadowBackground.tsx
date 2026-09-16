@@ -1,11 +1,14 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import { WebGlShadowEngine } from "./engines/WebGlShadowEngine";
 import { Canvas2dShadowEngine } from "./engines/Canvas2dShadowEngine";
 import { ProceduralKomorebiEngine } from "./engines/ProceduralKomorebiEngine";
 import { ProceduralBranchEngine } from "./engines/ProceduralBranchEngine";
+import { useMotionController } from "../hooks/useMotionController";
+import { SPRING_PRESETS, SpringConfig } from "../lib/motion/spring";
+import { MotionOutput } from "../lib/motion/motion-controller";
 
 /**
  * Pluggable Shadow Caster configuration discriminated union.
@@ -21,6 +24,26 @@ export type ShadowCasterConfig =
 export type DegradationTier = "auto" | "force-static" | "force-dynamic";
 
 /**
+ * Calibrated spring motion behavior presets.
+ */
+export type MotionPreset = "smooth" | "snappy" | "inertial" | "bouncy" | "none";
+
+/**
+ * Spring physics, parallax, and ambient motion configuration for interactive shadowcasting.
+ */
+export interface MotionConfig {
+  preset?: MotionPreset;
+  stiffness?: number;
+  damping?: number;
+  mass?: number;
+  ambient?: boolean;
+  ambientSpeed?: number;
+  ambientStrength?: number;
+  maxDisplacementPx?: number;
+  scrollInfluence?: boolean | number;
+}
+
+/**
  * Foundational props interface for <ShadowBackground />.
  */
 export interface ShadowBackgroundProps {
@@ -33,6 +56,7 @@ export interface ShadowBackgroundProps {
   shadowOpacity?: number;
   lightDirection?: [number, number, number];
   fit?: "cover" | "contain" | "fill";
+  motion?: MotionPreset | MotionConfig;
   className?: string;
   children?: React.ReactNode;
 }
@@ -143,6 +167,19 @@ export class EngineErrorBoundary extends React.Component<
 }
 
 /**
+ * Helper mapping boolean or numeric scroll influence into pixel shift value.
+ */
+export function resolveScrollInfluence(influence?: boolean | number): number {
+  if (typeof influence === "boolean") {
+    return influence ? 25 : 0;
+  }
+  if (typeof influence === "number") {
+    return influence;
+  }
+  return 25;
+}
+
+/**
  * Parameters for resolving the dynamic shadow synthesis engine.
  */
 export interface ResolveEngineOptions {
@@ -154,10 +191,12 @@ export interface ResolveEngineOptions {
   lightDirection?: [number, number, number];
   useCanvasFallback?: boolean;
   onWebGlError?: () => void;
+  motionOutput?: MotionOutput;
 }
 
 /**
- * Resolves the dynamic shadow synthesis engine based on caster type and WebGL availability.
+ * Resolves the dynamic shadow synthesis engine based on caster type, WebGL availability,
+ * and dynamic motion state.
  */
 export function resolveShadowEngine({
   caster,
@@ -168,8 +207,20 @@ export function resolveShadowEngine({
   lightDirection = [20, 25, 1],
   useCanvasFallback = false,
   onWebGlError,
+  motionOutput,
 }: ResolveEngineOptions): React.ReactElement<Record<string, unknown>> {
-  const [offsetX, offsetY] = lightDirection;
+  const isDynamicMotion = motionOutput != null;
+  const offsetX = isDynamicMotion ? motionOutput.shadowOffsetX : lightDirection[0];
+  const offsetY = isDynamicMotion ? motionOutput.shadowOffsetY : lightDirection[1];
+  const effectivePenumbra = isDynamicMotion
+    ? Math.round(penumbra * motionOutput.penumbraMultiplier)
+    : penumbra;
+  const windAngle = isDynamicMotion
+    ? 45 + motionOutput.shadowOffsetX * 1.5
+    : 45;
+  const windStrength = isDynamicMotion
+    ? 0.8 + Math.abs(motionOutput.shadowOffsetX) * 0.02
+    : 0.8;
 
   switch (caster.type) {
     case "image": {
@@ -181,7 +232,7 @@ export function resolveShadowEngine({
             casterImage={caster.src}
             offsetX={offsetX}
             offsetY={offsetY}
-            blurRadius={penumbra}
+            blurRadius={effectivePenumbra}
             shadowOpacity={effectiveOpacity}
             ambientScale={1.0}
           />
@@ -196,7 +247,7 @@ export function resolveShadowEngine({
               casterImage={caster.src}
               offsetX={offsetX}
               offsetY={offsetY}
-              blurRadius={penumbra}
+              blurRadius={effectivePenumbra}
               shadowOpacity={effectiveOpacity}
               ambientScale={1.0}
             />
@@ -207,7 +258,7 @@ export function resolveShadowEngine({
             casterImage={caster.src}
             offsetX={offsetX}
             offsetY={offsetY}
-            blurRadius={penumbra}
+            blurRadius={effectivePenumbra}
             shadowOpacity={effectiveOpacity}
             ambientScale={1.0}
             contactHardening={contactHardening}
@@ -224,7 +275,7 @@ export function resolveShadowEngine({
           scale={caster.scale ?? 3.5}
           speed={caster.speed ?? 0.5}
           contrast={caster.contrast ?? 1.2}
-          windAngle={45}
+          windAngle={windAngle}
           mode={useCanvasFallback ? "cpu" : "gpu"}
         />
       );
@@ -235,8 +286,8 @@ export function resolveShadowEngine({
         <ProceduralBranchEngine
           basePlate={basePlate}
           shadowOpacity={shadowOpacity}
-          penumbraRadius={penumbra}
-          windStrength={0.8}
+          penumbraRadius={effectivePenumbra}
+          windStrength={windStrength}
           swaySpeed={caster.swaySpeed ?? 0.7}
           branchDepth={caster.depth ?? 4}
           leafDensity={caster.leafDensity ?? 5}
@@ -248,8 +299,9 @@ export function resolveShadowEngine({
 
 /**
  * <ShadowBackground />
- * Foundational component providing zero-LCP static poster rendering,
- * cooperative idle hydration, hardware capability gating, and adaptive engine resolution.
+ * Unified, performant, progressively enhanced Next.js background component.
+ * Integrates zero-LCP static poster rendering, cooperative idle hydration,
+ * hardware capability gating, and spring-damped interactive motion with 3D parallax.
  */
 export function ShadowBackground({
   basePlate,
@@ -261,12 +313,48 @@ export function ShadowBackground({
   shadowOpacity = 0.65,
   lightDirection = [20, 25, 1],
   fit = "cover",
+  motion = "smooth",
   className,
   children,
 }: ShadowBackgroundProps) {
   const [isDynamicMounted, setIsDynamicMounted] = useState(false);
   const [webGlSupported, setWebGlSupported] = useState(true);
+  const stageRef = useRef<HTMLDivElement>(null);
 
+  // 1. Resolve motion configuration & spring physics parameters
+  const isMotionDisabled =
+    motion === "none" ||
+    (typeof motion === "object" && motion.preset === "none");
+
+  const motionConfig: MotionConfig =
+    typeof motion === "object" ? motion : { preset: motion ?? "smooth" };
+
+  const activePreset = motionConfig.preset ?? "smooth";
+  const baseSpring =
+    activePreset !== "none" ? SPRING_PRESETS[activePreset] : SPRING_PRESETS.smooth;
+
+  const resolvedSpring: SpringConfig = {
+    stiffness: motionConfig.stiffness ?? baseSpring.stiffness,
+    damping: motionConfig.damping ?? baseSpring.damping,
+    mass: motionConfig.mass ?? baseSpring.mass,
+  };
+
+  const scrollInfluencePx = isMotionDisabled
+    ? 0
+    : resolveScrollInfluence(motionConfig.scrollInfluence);
+
+  // 2. Wire headless motion controller
+  const { output, handlers } = useMotionController({
+    containerRef: stageRef,
+    springConfig: resolvedSpring,
+    maxDisplacementPx: motionConfig.maxDisplacementPx ?? 45,
+    scrollInfluencePx,
+    ambientMotion: !isMotionDisabled && (motionConfig.ambient ?? true),
+    ambientSpeed: motionConfig.ambientSpeed ?? 0.8,
+    ambientStrength: motionConfig.ambientStrength ?? 8,
+  });
+
+  // 3. Cooperative idle hydration & capability gating
   useEffect(() => {
     // 1. Force static: do not schedule dynamic mount
     if (degradation === "force-static") {
@@ -295,12 +383,9 @@ export function ShadowBackground({
 
     if (
       typeof window !== "undefined" &&
-      typeof (window as unknown as { requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number })
-        .requestIdleCallback === "function"
+      typeof window.requestIdleCallback === "function"
     ) {
-      idleId = (
-        window as unknown as { requestIdleCallback: (cb: () => void, opts?: { timeout: number }) => number }
-      ).requestIdleCallback(mountDynamic, { timeout: 1000 });
+      idleId = window.requestIdleCallback(mountDynamic, { timeout: 1000 });
     } else {
       timerId = setTimeout(mountDynamic, 100);
     }
@@ -310,12 +395,9 @@ export function ShadowBackground({
       if (
         idleId !== null &&
         typeof window !== "undefined" &&
-        typeof (window as unknown as { cancelIdleCallback?: (id: number) => void })
-          .cancelIdleCallback === "function"
+        typeof window.cancelIdleCallback === "function"
       ) {
-        (
-          window as unknown as { cancelIdleCallback: (id: number) => void }
-        ).cancelIdleCallback(idleId);
+        window.cancelIdleCallback(idleId);
       }
       if (timerId !== null) {
         clearTimeout(timerId);
@@ -332,13 +414,27 @@ export function ShadowBackground({
       : "object-cover";
 
   const isDynamicActive = degradation !== "force-static" && isDynamicMounted;
+  const isMotionActive = isDynamicActive && !isMotionDisabled;
 
   return (
     <div
+      ref={stageRef}
       className={["relative w-full h-full overflow-hidden", className]
         .filter(Boolean)
         .join(" ")}
       data-fit={fit}
+      data-motion-active={isMotionActive ? "true" : "false"}
+      style={isMotionActive ? { touchAction: "none" } : undefined}
+      {...(isMotionActive
+        ? {
+            onPointerMove: handlers.onPointerMove,
+            onPointerLeave: handlers.onPointerLeave,
+            onTouchStart: handlers.onTouchStart,
+            onTouchMove: handlers.onTouchMove,
+            onTouchEnd: handlers.onTouchEnd,
+            onTouchCancel: handlers.onTouchCancel,
+          }
+        : {})}
     >
       {/* Background canvas / poster layer */}
       <div className="absolute inset-0 pointer-events-none z-0">
@@ -355,7 +451,16 @@ export function ShadowBackground({
 
         {/* Dynamic Shadow Synthesis Engine */}
         {isDynamicActive && (
-          <div className="absolute inset-0 transition-opacity duration-300">
+          <div
+            className="absolute inset-0 transition-opacity duration-300 transform-gpu"
+            style={
+              isMotionActive
+                ? {
+                    transform: `perspective(1000px) rotateX(${output.skewY}deg) rotateY(${output.skewX}deg)`,
+                  }
+                : undefined
+            }
+          >
             {resolveShadowEngine({
               caster,
               basePlate,
@@ -365,6 +470,7 @@ export function ShadowBackground({
               lightDirection,
               useCanvasFallback: !webGlSupported,
               onWebGlError: () => setWebGlSupported(false),
+              motionOutput: isMotionActive ? output : undefined,
             })}
           </div>
         )}
