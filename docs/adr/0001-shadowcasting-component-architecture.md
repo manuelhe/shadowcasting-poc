@@ -1,9 +1,10 @@
 # 0001 - Dynamic Shadowcasting Component Architecture
 
-* **Status**: Accepted
+* **Status**: Accepted (Amended by [ADR-0002](0002-decoupled-transparent-shadow-layer.md))
 * **Deciders**: Antigravity Team, Frontend Engineering, Systems Performance Group
 * **Date**: 2026-09-16
 * **Technical Story**: [Ticket #10 (Task: ADR-0001)](https://github.com/manuelhe/shadowcasting-poc/issues/10), [Spec #9 (Production Component Specification)](https://github.com/manuelhe/shadowcasting-poc/issues/9)
+* **Amended By**: [ADR-0002 (Decoupled Transparent Shadow Layer Architecture)](0002-decoupled-transparent-shadow-layer.md)
 
 ---
 
