@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" width="100%" height="100%">
+  <defs>
+    <linearGradient id="wallGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#e2e8f0" />
+      <stop offset="40%" stop-color="#cbd5e1" />
+      <stop offset="70%" stop-color="#94a3b8" />
+      <stop offset="100%" stop-color="#64748b" />
+    </linearGradient>
+    <radialGradient id="sunSpot" cx="25%" cy="30%" r="60%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.45" />
+      <stop offset="50%" stop-color="#f8fafc" stop-opacity="0.15" />
+      <stop offset="100%" stop-color="#000000" stop-opacity="0" />
+    </radialGradient>
+    <filter id="noiseFilter">
+      <feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="3" stitchTiles="stitch" />
+      <feColorMatrix type="matrix" values="0 0 0 0 0   0 0 0 0 0   0 0 0 0 0  0 0 0 0.04 0" />
+    </filter>
+  </defs>
+  <!-- Base wall surface -->
+  <rect width="1920" height="1080" fill="url(#wallGrad)" />
+  <!-- Architectural vertical seam -->
+  <line x1="640" y1="0" x2="640" y2="1080" stroke="#475569" stroke-width="2" opacity="0.15" />
+  <line x1="1280" y1="0" x2="1280" y2="1080" stroke="#475569" stroke-width="2" opacity="0.15" />
+  <!-- Ambient daylight window glow -->
+  <rect width="1920" height="1080" fill="url(#sunSpot)" />
+  <!-- Concrete microtexture -->
+  <rect width="1920" height="1080" filter="url(#noiseFilter)" />
+</svg>
