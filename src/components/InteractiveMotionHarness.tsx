@@ -22,11 +22,9 @@ export function InteractiveMotionHarness() {
   // Engine selection
   const [activeEngine, setActiveEngine] = useState<"webgl" | "komorebi" | "branch">("webgl");
 
-  // Physics preset & custom controls
+  // Physics preset & bundled SpringConfig
   const [preset, setPreset] = useState<"snappy" | "smooth" | "inertial" | "bouncy">("smooth");
-  const [stiffness, setStiffness] = useState(SPRING_PRESETS.smooth.stiffness);
-  const [damping, setDamping] = useState(SPRING_PRESETS.smooth.damping);
-  const [mass, setMass] = useState(SPRING_PRESETS.smooth.mass);
+  const [springConfig, setSpringConfig] = useState<SpringConfig>(SPRING_PRESETS.smooth);
 
   // Interaction options
   const [maxDisplacement, setMaxDisplacement] = useState(48);
@@ -34,7 +32,7 @@ export function InteractiveMotionHarness() {
   const [scrollInfluence, setScrollInfluence] = useState(30);
   const [ambientMotion, setAmbientMotion] = useState(true);
 
-  // Base assets
+  // Base Plate
   const [basePlate, setBasePlate] = useState("/images/base-minimal-studio.svg");
 
   // Telemetry state
@@ -42,24 +40,20 @@ export function InteractiveMotionHarness() {
   const [engineFps, setEngineFps] = useState(60);
 
   // Motion controller hook
-  const activeSpringConfig: SpringConfig = { stiffness, damping, mass };
   const { output, handlers } = useMotionController({
     containerRef,
-    springConfig: activeSpringConfig,
+    springConfig,
     maxDisplacementPx: maxDisplacement,
     lightElevation,
     scrollInfluencePx: scrollInfluence,
     ambientMotion,
-    ambientWindSpeed: 0.8,
-    ambientWindStrength: 10,
+    ambientSpeed: 0.8,
+    ambientStrength: 10,
   });
 
   const handlePresetChange = (name: "snappy" | "smooth" | "inertial" | "bouncy") => {
     setPreset(name);
-    const p = SPRING_PRESETS[name];
-    setStiffness(p.stiffness);
-    setDamping(p.damping);
-    setMass(p.mass);
+    setSpringConfig(SPRING_PRESETS[name]);
   };
 
   return (
@@ -71,10 +65,10 @@ export function InteractiveMotionHarness() {
             <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-sky-500/10 text-sky-400 border border-sky-500/20">
               Prototype Ticket #7
             </span>
-            <span className="text-xs text-zinc-400">Interaction &amp; Parallax Motion</span>
+            <span className="text-xs text-zinc-400">Interactive Motion &amp; Parallax Controller</span>
           </div>
           <h3 className="text-lg font-bold text-zinc-100 mt-1">
-            Composable Interaction &amp; Parallax Motion Controller
+            Composable Interactive Motion &amp; Parallax Controller
           </h3>
         </div>
 
@@ -158,8 +152,8 @@ export function InteractiveMotionHarness() {
         {/* Stiffness & Damping Sliders */}
         <div>
           <div className="flex justify-between items-center mb-1">
-            <label className="text-zinc-400 font-medium">Stiffness (k) / Damping (c)</label>
-            <span className="font-mono text-zinc-300">{stiffness} / {damping}</span>
+            <label className="text-zinc-400 font-medium">Stiffness / Damping</label>
+            <span className="font-mono text-zinc-300">{springConfig.stiffness} / {springConfig.damping}</span>
           </div>
           <div className="grid grid-cols-2 gap-2">
             <input
@@ -167,8 +161,10 @@ export function InteractiveMotionHarness() {
               min="40"
               max="350"
               step="10"
-              value={stiffness}
-              onChange={(e) => setStiffness(Number(e.target.value))}
+              value={springConfig.stiffness}
+              onChange={(e) =>
+                setSpringConfig((prev) => ({ ...prev, stiffness: Number(e.target.value) }))
+              }
               className="w-full accent-sky-500 cursor-pointer"
               title="Stiffness"
             />
@@ -177,8 +173,10 @@ export function InteractiveMotionHarness() {
               min="5"
               max="50"
               step="1"
-              value={damping}
-              onChange={(e) => setDamping(Number(e.target.value))}
+              value={springConfig.damping}
+              onChange={(e) =>
+                setSpringConfig((prev) => ({ ...prev, damping: Number(e.target.value) }))
+              }
               className="w-full accent-sky-500 cursor-pointer"
               title="Damping"
             />
@@ -188,8 +186,8 @@ export function InteractiveMotionHarness() {
         {/* Mass & Max Displacement */}
         <div>
           <div className="flex justify-between items-center mb-1">
-            <label className="text-zinc-400 font-medium">Mass (m) / Max Offset</label>
-            <span className="font-mono text-zinc-300">{mass.toFixed(1)}m / {maxDisplacement}px</span>
+            <label className="text-zinc-400 font-medium">Mass / Max Offset</label>
+            <span className="font-mono text-zinc-300">{springConfig.mass.toFixed(1)}m / {maxDisplacement}px</span>
           </div>
           <div className="grid grid-cols-2 gap-2">
             <input
@@ -197,8 +195,10 @@ export function InteractiveMotionHarness() {
               min="0.5"
               max="3.5"
               step="0.1"
-              value={mass}
-              onChange={(e) => setMass(Number(e.target.value))}
+              value={springConfig.mass}
+              onChange={(e) =>
+                setSpringConfig((prev) => ({ ...prev, mass: Number(e.target.value) }))
+              }
               className="w-full accent-sky-500 cursor-pointer"
               title="Mass"
             />
@@ -232,7 +232,7 @@ export function InteractiveMotionHarness() {
           />
         </div>
 
-        {/* Light Elevation & Ambient Wind Toggle */}
+        {/* Light Elevation & Ambient Motion Toggle */}
         <div className="flex items-center gap-3">
           <div className="flex-1">
             <div className="flex justify-between items-center mb-1">
@@ -267,7 +267,7 @@ export function InteractiveMotionHarness() {
         </div>
       </div>
 
-      {/* Interactive Stage (Pointer & Touch Target) */}
+      {/* Interactive Stage (Pointer & Touch Target with 3D Perspective Distortion) */}
       <div
         ref={containerRef}
         onPointerMove={handlers.onPointerMove}
@@ -275,64 +275,73 @@ export function InteractiveMotionHarness() {
         onTouchStart={handlers.onTouchStart}
         onTouchMove={handlers.onTouchMove}
         onTouchEnd={handlers.onTouchEnd}
-        style={{ touchAction: "none" }}
+        onTouchCancel={handlers.onTouchCancel}
+        style={{ touchAction: "none", perspective: 1200 }}
         className="mt-6 relative w-full aspect-[16/9] sm:aspect-[21/9] rounded-2xl overflow-hidden border border-zinc-800 shadow-2xl bg-zinc-950 cursor-crosshair group select-none"
       >
-        {activeEngine === "webgl" && (
-          <WebGlShadowEngine
-            baseImage={basePlate}
-            casterImage="/images/caster-branch.svg"
-            offsetX={output.shadowOffsetX}
-            offsetY={output.shadowOffsetY}
-            blurRadius={Math.round(14 * output.penumbraMultiplier)}
-            shadowOpacity={0.65}
-            ambientScale={1.0}
-            contactHardening={true}
-            onFrameStats={(s) => {
-              setEngineFrameTime(s.frameTimeMs);
-              setEngineFps(s.fps);
-            }}
-          />
-        )}
+        {/* Render Layer with Applied Dynamic Perspective Skew */}
+        <div
+          className="w-full h-full transform-gpu transition-transform duration-75 ease-out"
+          style={{
+            transform: `perspective(1000px) rotateX(${output.skewY}deg) rotateY(${output.skewX}deg)`,
+          }}
+        >
+          {activeEngine === "webgl" && (
+            <WebGlShadowEngine
+              baseImage={basePlate}
+              casterImage="/images/caster-branch.svg"
+              offsetX={output.shadowOffsetX}
+              offsetY={output.shadowOffsetY}
+              blurRadius={Math.round(14 * output.penumbraMultiplier)}
+              shadowOpacity={0.65}
+              ambientScale={1.0}
+              contactHardening={true}
+              onFrameStats={(s) => {
+                setEngineFrameTime(s.frameTimeMs);
+                setEngineFps(s.fps);
+              }}
+            />
+          )}
 
-        {activeEngine === "komorebi" && (
-          <ProceduralKomorebiEngine
-            basePlate={basePlate}
-            shadowOpacity={0.6}
-            scale={4.0}
-            speed={0.4}
-            contrast={1.7}
-            windAngle={45 + output.shadowOffsetX * 1.5}
-            mode="gpu"
-            onFrameStats={(s) => {
-              setEngineFrameTime(s.frameTimeMs);
-              setEngineFps(s.fps);
-            }}
-          />
-        )}
+          {activeEngine === "komorebi" && (
+            <ProceduralKomorebiEngine
+              basePlate={basePlate}
+              shadowOpacity={0.6}
+              scale={4.0}
+              speed={0.4}
+              contrast={1.7}
+              windAngle={45 + output.shadowOffsetX * 1.5}
+              mode="gpu"
+              onFrameStats={(s) => {
+                setEngineFrameTime(s.frameTimeMs);
+                setEngineFps(s.fps);
+              }}
+            />
+          )}
 
-        {activeEngine === "branch" && (
-          <ProceduralBranchEngine
-            basePlate={basePlate}
-            shadowOpacity={0.6}
-            penumbraRadius={Math.round(12 * output.penumbraMultiplier)}
-            windStrength={0.8 + Math.abs(output.shadowOffsetX) * 0.02}
-            swaySpeed={1.0}
-            branchDepth={4}
-            leafDensity={5}
-            onFrameStats={(s) => {
-              setEngineFrameTime(s.frameTimeMs);
-              setEngineFps(s.fps);
-            }}
-          />
-        )}
+          {activeEngine === "branch" && (
+            <ProceduralBranchEngine
+              basePlate={basePlate}
+              shadowOpacity={0.6}
+              penumbraRadius={Math.round(12 * output.penumbraMultiplier)}
+              windStrength={0.8 + Math.abs(output.shadowOffsetX) * 0.02}
+              swaySpeed={1.0}
+              branchDepth={4}
+              leafDensity={5}
+              onFrameStats={(s) => {
+                setEngineFrameTime(s.frameTimeMs);
+                setEngineFps(s.fps);
+              }}
+            />
+          )}
+        </div>
 
         {/* Virtual Light Indicator (Crosshair) */}
         <div
           className="absolute w-8 h-8 rounded-full border border-amber-300/60 bg-amber-400/20 shadow-[0_0_15px_rgba(251,191,36,0.5)] pointer-events-none transform -translate-x-1/2 -translate-y-1/2 transition-opacity duration-300 flex items-center justify-center text-[9px] font-mono font-bold text-amber-200"
           style={{
-            left: `${((output.rawPointer.x + 1) / 2) * 100}%`,
-            top: `${((output.rawPointer.y + 1) / 2) * 100}%`,
+            left: `${output.normalizedUV.u * 100}%`,
+            top: `${output.normalizedUV.v * 100}%`,
             opacity: output.rawPointer.x === 0 && output.rawPointer.y === 0 ? 0.3 : 0.9,
           }}
         >
@@ -348,7 +357,7 @@ export function InteractiveMotionHarness() {
               }`}
             />
             <span className="uppercase tracking-wider text-[11px] text-zinc-300">
-              {output.isAtRest ? "Resting" : "Spring Active"}
+              {output.isAtRest ? "Resting (Sleep)" : "Spring Active"}
             </span>
           </div>
           <span className="text-zinc-600">|</span>
@@ -365,7 +374,7 @@ export function InteractiveMotionHarness() {
           </span>
         </div>
 
-        {/* Gesture Guidance Overlay (fades out on hover) */}
+        {/* Gesture Guidance Overlay */}
         <div className="absolute bottom-4 right-4 bg-zinc-950/80 backdrop-blur-sm px-3 py-1.5 rounded-lg border border-zinc-800 text-[11px] text-zinc-400 flex items-center gap-2 pointer-events-none">
           <Move className="w-3 h-3 text-sky-400" />
           <span>Move cursor or touch-drag across stage</span>
@@ -376,16 +385,16 @@ export function InteractiveMotionHarness() {
       <div className="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
         <div className="bg-zinc-900/50 border border-zinc-800/80 p-3 rounded-xl">
           <div className="text-zinc-500 text-[11px] mb-1 flex items-center gap-1">
-            <Compass className="w-3 h-3 text-sky-400" /> Normalized Light UV
+            <Compass className="w-3 h-3 text-sky-400" /> Normalized UV / Light 3D
           </div>
           <div className="font-mono text-sm text-zinc-200">
-            [{output.rawPointer.x.toFixed(2)}, {output.rawPointer.y.toFixed(2)}]
+            [{output.normalizedUV.u.toFixed(2)}, {output.normalizedUV.v.toFixed(2)}] • 3D: ({output.virtualLightDirection.x.toFixed(2)}, {output.virtualLightDirection.y.toFixed(2)}, {output.virtualLightDirection.z.toFixed(2)})
           </div>
         </div>
 
         <div className="bg-zinc-900/50 border border-zinc-800/80 p-3 rounded-xl">
           <div className="text-zinc-500 text-[11px] mb-1 flex items-center gap-1">
-            <Activity className="w-3 h-3 text-emerald-400" /> Perspective Skew
+            <Activity className="w-3 h-3 text-emerald-400" /> Perspective Tilt &amp; Skew
           </div>
           <div className="font-mono text-sm text-zinc-200">
             {output.skewX.toFixed(1)}° X / {output.skewY.toFixed(1)}° Y
@@ -394,10 +403,10 @@ export function InteractiveMotionHarness() {
 
         <div className="bg-zinc-900/50 border border-zinc-800/80 p-3 rounded-xl">
           <div className="text-zinc-500 text-[11px] mb-1 flex items-center gap-1">
-            <Sliders className="w-3 h-3 text-amber-400" /> Scroll Progress
+            <Sliders className="w-3 h-3 text-amber-400" /> Scroll Progress &amp; Delta
           </div>
           <div className="font-mono text-sm text-zinc-200">
-            {Math.round(output.scrollProgress * 100)}% ({output.scrollProgress.toFixed(2)})
+            {Math.round(output.scrollProgress * 100)}% (Δ {output.scrollDeltaY.toFixed(0)}px)
           </div>
         </div>
 
@@ -406,7 +415,7 @@ export function InteractiveMotionHarness() {
             <Zap className="w-3 h-3 text-purple-400" /> Active Physics Model
           </div>
           <div className="font-mono text-sm text-zinc-200 capitalize">
-            {preset} (k={stiffness}, c={damping})
+            {preset} (k={springConfig.stiffness}, c={springConfig.damping}, m={springConfig.mass})
           </div>
         </div>
       </div>

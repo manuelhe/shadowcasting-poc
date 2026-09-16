@@ -14,48 +14,87 @@ export interface Vector2 {
   y: number;
 }
 
+export interface NormalizedUV {
+  u: number; // [0..1] from top-left
+  v: number; // [0..1] from top-left
+}
+
+export interface NormalizedPointerResult {
+  centered: Vector2;   // [-1..1] with (0,0) at element center
+  uv: NormalizedUV;    // [0..1] with (0,0) at top-left
+}
+
 export interface NormalizePointerOptions {
   clamp?: boolean;
 }
 
 /**
  * Normalizes client coordinates relative to an element rectangle.
- * Element center maps to (0, 0), top-left to (-1, -1), bottom-right to (1, 1).
+ * Computes both center-relative [-1..1] vector and normalized [0..1] UV coordinates.
  */
 export function normalizePointer(
   clientX: number,
   clientY: number,
   rect: RectLike,
   options?: NormalizePointerOptions
-): Vector2 {
+): NormalizedPointerResult {
   if (rect.width <= 0 || rect.height <= 0) {
-    return { x: 0, y: 0 };
+    return {
+      centered: { x: 0, y: 0 },
+      uv: { u: 0.5, v: 0.5 },
+    };
   }
 
-  const relX = clientX - rect.left;
-  const relY = clientY - rect.top;
+  const relativeX = clientX - rect.left;
+  const relativeY = clientY - rect.top;
+
+  let u = relativeX / rect.width;
+  let v = relativeY / rect.height;
 
   // Center-relative normalized coords [-1..1]
-  let nx = (relX / rect.width) * 2 - 1;
-  let ny = (relY / rect.height) * 2 - 1;
+  let normalizedX = u * 2 - 1;
+  let normalizedY = v * 2 - 1;
 
   if (options?.clamp) {
-    nx = Math.max(-1, Math.min(1, nx));
-    ny = Math.max(-1, Math.min(1, ny));
+    u = Math.max(0, Math.min(1, u));
+    v = Math.max(0, Math.min(1, v));
+    normalizedX = Math.max(-1, Math.min(1, normalizedX));
+    normalizedY = Math.max(-1, Math.min(1, normalizedY));
   }
 
-  return { x: nx, y: ny };
+  return {
+    centered: { x: normalizedX, y: normalizedY },
+    uv: { u, v },
+  };
+}
+
+export interface ScrollState {
+  progress: number;   // [0..1]
+  deltaY: number;     // Instantaneous scroll delta
 }
 
 /**
- * Normalizes window or container scroll position to a [0..1] range.
+ * Normalizes window or container scroll position to a [0..1] progress and tracks deltas.
  */
-export function normalizeScroll(scrollY: number, maxScroll: number): number {
+export function normalizeScroll(
+  scrollY: number,
+  maxScroll: number,
+  previousScrollY = 0
+): ScrollState {
   if (maxScroll <= 0) {
-    return 0;
+    return { progress: 0, deltaY: 0 };
   }
-  const progress = scrollY / maxScroll;
-  return Math.max(0, Math.min(1, progress));
+  const rawProgress = scrollY / maxScroll;
+  const progress = Math.max(0, Math.min(1, rawProgress));
+  const deltaY = scrollY - previousScrollY;
+
+  return { progress, deltaY };
+}
+
+export interface VirtualLight3D {
+  x: number;
+  y: number;
+  z: number;
 }
 
 export interface VirtualLightOptions {
@@ -63,19 +102,19 @@ export interface VirtualLightOptions {
   scrollProgress: number;
   maxDisplacementPx: number;
   lightElevation?: number; // 0.1 to 3.0 (higher = softer penumbra)
-  scrollInfluence?: number; // Pixel shift per unit scroll
+  scrollInfluencePx?: number; // Pixel shift per unit scroll
 }
 
 export interface VirtualLightResult {
-  shadowX: number;
-  shadowY: number;
+  shadowOffsetX: number;
+  shadowOffsetY: number;
   penumbraMultiplier: number;
-  lightDirection: { x: number; y: number; z: number };
+  virtualLightDirection: VirtualLight3D;
 }
 
 /**
- * Computes 2D cast shadow displacement and penumbra multiplier
- * from normalized pointer, scroll progress, and virtual light elevation.
+ * Computes 2D cast shadow displacement, 3D virtual light direction, and penumbra multiplier
+ * from normalized pointer, scroll progress, and light elevation.
  */
 export function computeVirtualLightOffset(options: VirtualLightOptions): VirtualLightResult {
   const {
@@ -83,31 +122,38 @@ export function computeVirtualLightOffset(options: VirtualLightOptions): Virtual
     scrollProgress,
     maxDisplacementPx,
     lightElevation = 1.0,
-    scrollInfluence = 20,
+    scrollInfluencePx = 25,
   } = options;
 
-  // A light positioned at pointer (nx, ny) casts shadows in the OPPOSITE direction.
-  // When pointer is at top-left (-1, -1), light is at (-1, -1) and shadow projects (+x, +y).
-  const dirX = -normalizedPointer.x;
-  const dirY = -normalizedPointer.y;
+  // Light at pointer (x, y) casts shadows in the OPPOSITE direction
+  const shadowDirectionX = -normalizedPointer.x;
+  const shadowDirectionY = -normalizedPointer.y;
 
-  // Scroll shifts the vertical angle of light downwards
-  const scrollShift = (scrollProgress - 0.5) * scrollInfluence;
+  // Vertical light elevation shift from scroll progress
+  const scrollShift = scrollProgress * scrollInfluencePx;
 
-  const shadowX = dirX * maxDisplacementPx;
-  const shadowY = dirY * maxDisplacementPx + scrollShift;
+  const shadowOffsetX = shadowDirectionX * maxDisplacementPx;
+  const shadowOffsetY = shadowDirectionY * maxDisplacementPx + scrollShift;
 
   // Penumbra spreads out when light elevation is higher or caster is further from base plate
   const penumbraMultiplier = Math.max(0.2, lightElevation * 1.2);
 
+  // 3D unit direction vector towards light source
+  const len = Math.sqrt(
+    normalizedPointer.x ** 2 + normalizedPointer.y ** 2 + lightElevation ** 2
+  );
+  const invLen = len > 0 ? 1 / len : 1;
+
+  const virtualLightDirection: VirtualLight3D = {
+    x: normalizedPointer.x * invLen,
+    y: normalizedPointer.y * invLen,
+    z: lightElevation * invLen,
+  };
+
   return {
-    shadowX,
-    shadowY,
+    shadowOffsetX,
+    shadowOffsetY,
     penumbraMultiplier,
-    lightDirection: {
-      x: normalizedPointer.x,
-      y: normalizedPointer.y,
-      z: lightElevation,
-    },
+    virtualLightDirection,
   };
 }

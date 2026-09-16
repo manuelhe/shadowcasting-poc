@@ -85,8 +85,8 @@ export default function Home() {
           <ProceduralFoliageHarness />
         </section>
 
-        {/* Composable Interaction & Parallax Motion Section (Issue #7) */}
-        <section aria-label="Interaction Motion" className="w-full mt-6">
+        {/* Composable Interactive Motion & Parallax Section (Issue #7) */}
+        <section aria-label="Interactive Motion" className="w-full mt-6">
           <InteractiveMotionHarness />
         </section>
 

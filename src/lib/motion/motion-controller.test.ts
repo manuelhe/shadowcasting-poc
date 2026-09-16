@@ -13,6 +13,9 @@ describe("MotionController", () => {
     expect(output.shadowOffsetX).toBe(0);
     expect(output.shadowOffsetY).toBe(0);
     expect(output.isAtRest).toBe(true);
+    expect(output.normalizedUV.u).toBe(0.5);
+    expect(output.normalizedUV.v).toBe(0.5);
+    expect(output.virtualLightDirection.z).toBeGreaterThan(0);
   });
 
   it("smoothly steers shadow offset towards pointer input over successive steps", () => {
@@ -47,7 +50,7 @@ describe("MotionController", () => {
     expect(outConverged.isAtRest).toBe(true);
   });
 
-  it("handles touch drag and releases back to neutral position on touch end", () => {
+  it("handles touch drag and releases back to neutral position on touch end or cancel", () => {
     const controller = new MotionController({
       springConfig: SPRING_PRESETS.smooth,
       maxDisplacementPx: 40,
@@ -63,8 +66,8 @@ describe("MotionController", () => {
     // Pointer was at left (-1, 0), so shadow projects to right (+x)
     expect(controller.getOutput().shadowOffsetX).toBeGreaterThan(20);
 
-    // Touch end releases to neutral (0, 0)
-    controller.handleTouchEnd();
+    // Touch cancel releases to neutral (0, 0)
+    controller.handleTouchCancel();
     for (let i = 0; i < 60; i++) controller.step(0.016);
 
     expect(Math.abs(controller.getOutput().shadowOffsetX)).toBeLessThan(1.0);
@@ -85,17 +88,17 @@ describe("MotionController", () => {
     const scrolledY = controller.getOutput().shadowOffsetY;
 
     expect(scrolledY).toBeGreaterThan(topY);
+    expect(controller.getOutput().scrollDeltaY).toBe(1000);
   });
 
-  it("blends ambient wind sway into total offset when ambient motion is enabled", () => {
+  it("blends ambient motion into total offset when ambient motion is enabled", () => {
     const controller = new MotionController({
       ambientMotion: true,
-      ambientWindStrength: 10,
+      ambientStrength: 10,
     });
 
     controller.step(0.5); // Advance ambient clock
     const out = controller.getOutput();
-    // Ambient offset should be active even with pointer at rest
     expect(out.shadowOffsetX !== 0 || out.shadowOffsetY !== 0).toBe(true);
   });
 });
