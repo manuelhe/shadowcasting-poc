@@ -4,7 +4,8 @@ import React, { useEffect, useState, useSyncExternalStore } from "react";
 import { globalFpsTracker, FrameMetrics } from "@/lib/fps-tracker";
 import { globalVitalsTracker, VitalsSnapshot } from "@/lib/web-vitals";
 import {
-  detectDeviceCapabilities,
+  getCachedDeviceCapabilities,
+  subscribeDeviceCapabilities,
   DeviceCapabilities,
   DegradationTier,
 } from "@/lib/device-capabilities";
@@ -33,8 +34,6 @@ interface DiagnosticHUDProps {
   onSettingsChange: (newSettings: HarnessSettings) => void;
 }
 
-const emptySubscribe = () => () => {};
-
 export function DiagnosticHUD({ settings, onSettingsChange }: DiagnosticHUDProps) {
   const [isOpen, setIsOpen] = useState(true);
   const [activeTab, setActiveTab] = useState<"performance" | "capabilities" | "controls">("performance");
@@ -55,8 +54,8 @@ export function DiagnosticHUD({ settings, onSettingsChange }: DiagnosticHUDProps
   });
 
   const deviceCaps = useSyncExternalStore<DeviceCapabilities | null>(
-    emptySubscribe,
-    () => detectDeviceCapabilities(),
+    subscribeDeviceCapabilities,
+    getCachedDeviceCapabilities,
     () => null
   );
 

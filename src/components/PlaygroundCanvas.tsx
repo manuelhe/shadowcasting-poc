@@ -3,20 +3,24 @@
 import React, { useState, useEffect, useRef, useSyncExternalStore } from "react";
 import Image from "next/image";
 import { HarnessSettings } from "./DiagnosticHUD";
-import { detectDeviceCapabilities, DegradationTier } from "@/lib/device-capabilities";
+import {
+  getCachedDeviceCapabilities,
+  subscribeDeviceCapabilities,
+  DegradationTier,
+} from "@/lib/device-capabilities";
 import { MousePointer, Wind, Layers, Sparkles } from "lucide-react";
 
 interface PlaygroundCanvasProps {
   settings: HarnessSettings;
 }
 
-const emptySubscribe = () => () => {};
+const getTierSnapshot = (): DegradationTier => getCachedDeviceCapabilities().recommendedTier;
 
 export function PlaygroundCanvas({ settings }: PlaygroundCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const detectedTier = useSyncExternalStore<DegradationTier>(
-    emptySubscribe,
-    () => detectDeviceCapabilities().recommendedTier,
+    subscribeDeviceCapabilities,
+    getTierSnapshot,
     () => "static-poster"
   );
   const effectiveTier = settings.forcedTier !== "auto" ? settings.forcedTier : detectedTier;

@@ -110,3 +110,48 @@ export function detectDeviceCapabilities(): DeviceCapabilities {
     reasons,
   };
 }
+
+let cachedCapabilities: DeviceCapabilities | null = null;
+
+export function getCachedDeviceCapabilities(): DeviceCapabilities {
+  if (typeof window === "undefined") {
+    return detectDeviceCapabilities();
+  }
+  if (!cachedCapabilities) {
+    cachedCapabilities = detectDeviceCapabilities();
+  }
+  return cachedCapabilities;
+}
+
+export function clearDeviceCapabilitiesCache(): void {
+  cachedCapabilities = null;
+}
+
+export function subscribeDeviceCapabilities(callback: () => void): () => void {
+  if (typeof window === "undefined") return () => {};
+
+  try {
+    const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const onChange = () => {
+      cachedCapabilities = detectDeviceCapabilities();
+      callback();
+    };
+
+    if (mediaQuery.addEventListener) {
+      mediaQuery.addEventListener("change", onChange);
+      return () => mediaQuery.removeEventListener("change", onChange);
+    } else {
+      const legacyQuery = mediaQuery as unknown as {
+        addListener?: (cb: () => void) => void;
+        removeListener?: (cb: () => void) => void;
+      };
+      if (typeof legacyQuery.addListener === "function") {
+        legacyQuery.addListener(onChange);
+        return () => legacyQuery.removeListener?.(onChange);
+      }
+    }
+  } catch {
+    // Media query not supported in environment
+  }
+  return () => {};
+}
