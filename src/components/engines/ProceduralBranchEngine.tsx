@@ -9,20 +9,24 @@ import {
 } from "@/lib/procedural/branch-skeleton";
 
 export interface ProceduralBranchProps {
-  baseImage: string;
+  basePlate: string;
   shadowOpacity: number;
-  blurRadius: number;
+  penumbraRadius: number;
   windStrength: number;
   swaySpeed: number;
   branchDepth: number;
   leafDensity: number;
-  onFrameStats?: (stats: { frameTimeMs: number; fps: number }) => void;
+  onFrameStats?: (stats: {
+    frameTimeMs: number;
+    fps: number;
+    memoryKb: number;
+  }) => void;
 }
 
 export function ProceduralBranchEngine({
-  baseImage,
+  basePlate,
   shadowOpacity,
-  blurRadius,
+  penumbraRadius,
   windStrength,
   swaySpeed,
   branchDepth,
@@ -33,18 +37,41 @@ export function ProceduralBranchEngine({
   const baseImgRef = useRef<HTMLImageElement | null>(null);
   const skeletonRef = useRef<BranchSkeleton | null>(null);
 
-  const lastTimeRef = useRef(0);
+  const propsRef = useRef({
+    shadowOpacity,
+    penumbraRadius,
+    windStrength,
+    swaySpeed,
+    branchDepth,
+    leafDensity,
+    onFrameStats,
+  });
+
+  useEffect(() => {
+    propsRef.current = {
+      shadowOpacity,
+      penumbraRadius,
+      windStrength,
+      swaySpeed,
+      branchDepth,
+      leafDensity,
+      onFrameStats,
+    };
+  });
+
+  const startTimeRef = useRef(0);
   const frameCountRef = useRef(0);
   const lastReportRef = useRef(0);
+  const execTimesRef = useRef<number[]>([]);
 
   // Load base plate image
   useEffect(() => {
     const img = new window.Image();
-    img.src = baseImage;
+    img.src = basePlate;
     img.onload = () => {
       baseImgRef.current = img;
     };
-  }, [baseImage]);
+  }, [basePlate]);
 
   // Generate parametric branch skeleton when structural parameters change
   useEffect(() => {
@@ -60,29 +87,17 @@ export function ProceduralBranchEngine({
   // Main animation loop
   useEffect(() => {
     let rafId: number;
-    lastTimeRef.current = performance.now();
-    lastReportRef.current = lastTimeRef.current;
-    const startTime = performance.now();
+    startTimeRef.current = performance.now();
+    lastReportRef.current = startTimeRef.current;
 
     const render = (now: number) => {
-      const delta = now - lastTimeRef.current;
-      lastTimeRef.current = now;
       frameCountRef.current++;
-
-      if (now - lastReportRef.current >= 500) {
-        const elapsed = (now - lastReportRef.current) / 1000;
-        const fps = Math.round(frameCountRef.current / elapsed);
-        frameCountRef.current = 0;
-        lastReportRef.current = now;
-        onFrameStats?.({
-          frameTimeMs: Math.round(delta * 10) / 10,
-          fps,
-        });
-      }
-
+      const currentProps = propsRef.current;
       const canvas = canvasRef.current;
       const baseImg = baseImgRef.current;
       const baseSkeleton = skeletonRef.current;
+
+      const t0 = performance.now();
 
       if (canvas && baseImg && baseSkeleton) {
         const ctx = canvas.getContext("2d");
@@ -93,22 +108,22 @@ export function ProceduralBranchEngine({
           // Clear
           ctx.clearRect(0, 0, w, h);
 
-          // 1. Draw base plate image
+          // 1. Draw base plate
           ctx.drawImage(baseImg, 0, 0, w, h);
 
           // 2. Compute dynamic harmonic sway
-          const elapsed = (now - startTime) / 1000;
+          const elapsed = (now - startTimeRef.current) / 1000;
           const swayed = swayBranchSkeleton(
             baseSkeleton,
-            elapsed * swaySpeed,
-            windStrength
+            elapsed * currentProps.swaySpeed,
+            currentProps.windStrength
           );
 
           // 3. Composite blurred shadow
           ctx.save();
           ctx.globalCompositeOperation = "multiply";
-          ctx.globalAlpha = shadowOpacity;
-          ctx.filter = `blur(${Math.max(1, blurRadius)}px)`;
+          ctx.globalAlpha = currentProps.shadowOpacity;
+          ctx.filter = `blur(${Math.max(1, currentProps.penumbraRadius)}px)`;
 
           // Render branch vector silhouette
           renderBranchToCanvas(ctx, swayed, w, h, "#09090b");
@@ -116,12 +131,39 @@ export function ProceduralBranchEngine({
         }
       }
 
+      const execTime = performance.now() - t0;
+      execTimesRef.current.push(execTime);
+
+      // Report telemetry every 500ms
+      if (now - lastReportRef.current >= 500) {
+        const timeSpan = (now - lastReportRef.current) / 1000;
+        const fps = Math.round(frameCountRef.current / timeSpan);
+        frameCountRef.current = 0;
+        lastReportRef.current = now;
+
+        const avgExec =
+          execTimesRef.current.reduce((a, b) => a + b, 0) /
+          Math.max(1, execTimesRef.current.length);
+        execTimesRef.current = [];
+
+        // Memory estimate: joints + leaves byte footprint
+        const jointBytes = (baseSkeleton?.joints.length ?? 0) * 64;
+        const leafBytes = (baseSkeleton?.leaves.length ?? 0) * 32;
+        const memoryKb = Math.round(((jointBytes + leafBytes) / 1024) * 10) / 10;
+
+        currentProps.onFrameStats?.({
+          frameTimeMs: Math.round(avgExec * 100) / 100,
+          fps,
+          memoryKb,
+        });
+      }
+
       rafId = requestAnimationFrame(render);
     };
 
     rafId = requestAnimationFrame(render);
     return () => cancelAnimationFrame(rafId);
-  }, [windStrength, swaySpeed, shadowOpacity, blurRadius, onFrameStats]);
+  }, []);
 
   // Handle canvas sizing
   useEffect(() => {
