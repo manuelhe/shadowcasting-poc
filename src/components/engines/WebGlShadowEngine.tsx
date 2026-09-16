@@ -2,6 +2,9 @@
 
 import React, { useRef, useEffect } from "react";
 import { ShadowEngineProps } from "./CssShadowEngine";
+import { parseColorToRgb } from "./color-utils";
+
+export { parseColorToRgb };
 
 export interface WebGlShadowEngineProps extends ShadowEngineProps {
   contactHardening?: boolean;
@@ -33,10 +36,10 @@ uniform float u_scale;
 uniform float u_blurRadius;
 uniform float u_shadowOpacity;
 uniform float u_contactHardening;
+uniform vec3 u_shadowColor;
+uniform float u_useBaseTexture;
 
 void main() {
-  vec4 baseColor = texture2D(u_baseTexture, v_uv);
-
   // Transform UV coordinate for shadow caster
   vec2 centeredUV = v_uv - vec2(0.5);
   vec2 casterUV = (centeredUV - u_offset) / u_scale + vec2(0.5);
@@ -71,9 +74,15 @@ void main() {
 
   float avgShadow = shadowDensity / totalWeight;
 
-  // Multiply composite on base plate
-  vec3 finalColor = baseColor.rgb * (1.0 - (avgShadow * u_shadowOpacity));
-  gl_FragColor = vec4(finalColor, 1.0);
+  if (u_useBaseTexture > 0.5) {
+    vec4 baseColor = texture2D(u_baseTexture, v_uv);
+    // Multiply composite on base plate for backward compatibility
+    vec3 finalColor = baseColor.rgb * (1.0 - (avgShadow * u_shadowOpacity));
+    gl_FragColor = vec4(finalColor, 1.0);
+  } else {
+    // Pure transparent alpha shadow synthesis
+    gl_FragColor = vec4(u_shadowColor, avgShadow * u_shadowOpacity);
+  }
 }
 `;
 
@@ -115,6 +124,7 @@ export function WebGlShadowEngine({
   offsetY,
   blurRadius,
   shadowOpacity,
+  shadowColor = "#000000",
   ambientScale,
   contactHardening = true,
   onFrameStats,
@@ -136,7 +146,7 @@ export function WebGlShadowEngine({
     if (!canvas) return;
 
     const gl = canvas.getContext("webgl", {
-      alpha: false,
+      alpha: true,
       antialias: false,
       powerPreference: "high-performance",
     });
@@ -145,6 +155,11 @@ export function WebGlShadowEngine({
       return;
     }
     glRef.current = gl;
+
+    // Set clear color to transparent and configure standard alpha blending
+    gl.clearColor(0.0, 0.0, 0.0, 0.0);
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
     const vShader = createShader(gl, gl.VERTEX_SHADER, VERTEX_SHADER_SOURCE);
     const fShader = createShader(gl, gl.FRAGMENT_SHADER, FRAGMENT_SHADER_SOURCE);
@@ -171,39 +186,39 @@ export function WebGlShadowEngine({
     gl.enableVertexAttribArray(aPositionLoc);
     gl.vertexAttribPointer(aPositionLoc, 2, gl.FLOAT, false, 0, 0);
 
-    // Create textures
-    const baseTex = gl.createTexture();
+    // Create caster texture only.
+    // Base texture allocation is skipped entirely when baseImage is omitted (Zero-Base VRAM Mode).
     const casterTex = gl.createTexture();
-    baseTexRef.current = baseTex;
     casterTexRef.current = casterTex;
 
-    // Placeholder 1x1 pixels while images load
-    const setupTex = (tex: WebGLTexture | null) => {
-      gl.bindTexture(gl.TEXTURE_2D, tex);
-      gl.texImage2D(
-        gl.TEXTURE_2D,
-        0,
-        gl.RGBA,
-        1,
-        1,
-        0,
-        gl.RGBA,
-        gl.UNSIGNED_BYTE,
-        new Uint8Array([200, 200, 200, 255])
-      );
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-    };
-
-    setupTex(baseTex);
-    setupTex(casterTex);
+    // Placeholder 1x1 pixel while caster image loads
+    gl.bindTexture(gl.TEXTURE_2D, casterTex);
+    gl.texImage2D(
+      gl.TEXTURE_2D,
+      0,
+      gl.RGBA,
+      1,
+      1,
+      0,
+      gl.RGBA,
+      gl.UNSIGNED_BYTE,
+      new Uint8Array([200, 200, 200, 255])
+    );
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
 
     return () => {
       if (program) gl.deleteProgram(program);
-      if (baseTex) gl.deleteTexture(baseTex);
-      if (casterTex) gl.deleteTexture(casterTex);
+      if (baseTexRef.current) {
+        gl.deleteTexture(baseTexRef.current);
+        baseTexRef.current = null;
+      }
+      if (casterTexRef.current) {
+        gl.deleteTexture(casterTexRef.current);
+        casterTexRef.current = null;
+      }
     };
   }, []);
 
@@ -214,6 +229,7 @@ export function WebGlShadowEngine({
 
     texturesReadyRef.current = false;
     let loaded = 0;
+    const required = baseImage ? 2 : 1;
 
     const uploadImage = (img: HTMLImageElement, tex: WebGLTexture | null) => {
       gl.bindTexture(gl.TEXTURE_2D, tex);
@@ -224,20 +240,54 @@ export function WebGlShadowEngine({
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     };
 
-    const bImg = new window.Image();
-    bImg.src = baseImage;
-    bImg.onload = () => {
-      uploadImage(bImg, baseTexRef.current);
-      loaded++;
-      if (loaded === 2) texturesReadyRef.current = true;
-    };
+    // Only load and allocate base texture if baseImage is provided
+    if (baseImage) {
+      if (!baseTexRef.current) {
+        const baseTex = gl.createTexture();
+        baseTexRef.current = baseTex;
+        gl.bindTexture(gl.TEXTURE_2D, baseTex);
+        gl.texImage2D(
+          gl.TEXTURE_2D,
+          0,
+          gl.RGBA,
+          1,
+          1,
+          0,
+          gl.RGBA,
+          gl.UNSIGNED_BYTE,
+          new Uint8Array([200, 200, 200, 255])
+        );
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      }
+
+      const bImg = new window.Image();
+      bImg.src = baseImage;
+      bImg.onload = () => {
+        if (gl && baseTexRef.current) {
+          uploadImage(bImg, baseTexRef.current);
+          loaded++;
+          if (loaded === required) texturesReadyRef.current = true;
+        }
+      };
+    } else {
+      // Release base texture if omitted
+      if (baseTexRef.current) {
+        gl.deleteTexture(baseTexRef.current);
+        baseTexRef.current = null;
+      }
+    }
 
     const cImg = new window.Image();
     cImg.src = casterImage;
     cImg.onload = () => {
-      uploadImage(cImg, casterTexRef.current);
-      loaded++;
-      if (loaded === 2) texturesReadyRef.current = true;
+      if (gl && casterTexRef.current) {
+        uploadImage(cImg, casterTexRef.current);
+        loaded++;
+        if (loaded === required) texturesReadyRef.current = true;
+      }
     };
   }, [baseImage, casterImage]);
 
@@ -269,19 +319,34 @@ export function WebGlShadowEngine({
 
       if (gl && program && canvas) {
         gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
+        gl.clearColor(0.0, 0.0, 0.0, 0.0);
+        gl.clear(gl.COLOR_BUFFER_BIT);
         gl.useProgram(program);
 
-        // Bind Base Texture to Unit 0
-        gl.activeTexture(gl.TEXTURE0);
-        gl.bindTexture(gl.TEXTURE_2D, baseTexRef.current);
-        const uBaseLoc = gl.getUniformLocation(program, "u_baseTexture");
-        gl.uniform1i(uBaseLoc, 0);
+        if (baseImage && baseTexRef.current) {
+          // Bind Base Texture to Unit 0
+          gl.activeTexture(gl.TEXTURE0);
+          gl.bindTexture(gl.TEXTURE_2D, baseTexRef.current);
+          gl.uniform1i(gl.getUniformLocation(program, "u_baseTexture"), 0);
 
-        // Bind Caster Texture to Unit 1
-        gl.activeTexture(gl.TEXTURE1);
-        gl.bindTexture(gl.TEXTURE_2D, casterTexRef.current);
-        const uCasterLoc = gl.getUniformLocation(program, "u_casterTexture");
-        gl.uniform1i(uCasterLoc, 1);
+          // Bind Caster Texture to Unit 1
+          gl.activeTexture(gl.TEXTURE1);
+          gl.bindTexture(gl.TEXTURE_2D, casterTexRef.current);
+          gl.uniform1i(gl.getUniformLocation(program, "u_casterTexture"), 1);
+
+          gl.uniform1f(gl.getUniformLocation(program, "u_useBaseTexture"), 1.0);
+        } else {
+          // Zero-Base VRAM mode: do not bind u_baseTexture, bind caster to Unit 0
+          gl.activeTexture(gl.TEXTURE0);
+          gl.bindTexture(gl.TEXTURE_2D, casterTexRef.current);
+          gl.uniform1i(gl.getUniformLocation(program, "u_casterTexture"), 0);
+
+          gl.uniform1f(gl.getUniformLocation(program, "u_useBaseTexture"), 0.0);
+        }
+
+        // Set normalized shadow color uniform
+        const [r, g, b] = parseColorToRgb(shadowColor);
+        gl.uniform3f(gl.getUniformLocation(program, "u_shadowColor"), r, g, b);
 
         // Uniforms
         gl.uniform2f(
@@ -315,7 +380,18 @@ export function WebGlShadowEngine({
 
     rafId = requestAnimationFrame(render);
     return () => cancelAnimationFrame(rafId);
-  }, [offsetX, offsetY, blurRadius, shadowOpacity, ambientScale, contactHardening, onFrameStats]);
+  }, [
+    baseImage,
+    casterImage,
+    offsetX,
+    offsetY,
+    blurRadius,
+    shadowOpacity,
+    shadowColor,
+    ambientScale,
+    contactHardening,
+    onFrameStats,
+  ]);
 
   // Handle canvas sizing to match container
   useEffect(() => {
@@ -336,7 +412,12 @@ export function WebGlShadowEngine({
   }, []);
 
   return (
-    <div className="relative w-full h-full overflow-hidden bg-zinc-950 select-none">
+    <div
+      className={[
+        "relative w-full h-full overflow-hidden select-none",
+        baseImage ? "bg-zinc-950" : "bg-transparent",
+      ].join(" ")}
+    >
       <canvas
         ref={canvasRef}
         className="w-full h-full block"
