@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { DiagnosticHUD, HarnessSettings } from "@/components/DiagnosticHUD";
 import { PlaygroundCanvas } from "@/components/PlaygroundCanvas";
 import { BenchmarkComparison } from "@/components/BenchmarkComparison";
+import { ProceduralFoliageHarness } from "@/components/ProceduralFoliageHarness";
 import { Activity, ShieldCheck, Gauge, ExternalLink, GitBranch } from "lucide-react";
 
 export default function Home() {
@@ -76,6 +77,11 @@ export default function Home() {
         {/* Comparative Engine Benchmark Section (Issue #5) */}
         <section aria-label="Engine Benchmark" className="w-full mt-6">
           <BenchmarkComparison />
+        </section>
+
+        {/* Procedural Foliage & Komorebi Generator Section (Issue #6) */}
+        <section aria-label="Procedural Foliage" className="w-full mt-6">
+          <ProceduralFoliageHarness />
         </section>
 
         {/* Technical Architecture Notes & Research Grounding */}
