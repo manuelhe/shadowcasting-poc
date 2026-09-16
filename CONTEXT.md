@@ -5,8 +5,12 @@ A performant, progressively enhanced Next.js background component that casts rea
 ## Language
 
 **Base Plate**:
-The background layer (image, color, or gradient) onto which cast shadows are composited.
+The background layer (image, color, or gradient) onto which cast shadows are composited. By default, it is completely static and rigid, unaffected by interactive motion or 3D perspective distortion.
 _Avoid_: Background image, canvas floor, backdrop
+
+**Base Plate Motion**:
+An optional configuration mode that couples the Base Plate to interactive pointer and 3D perspective motion alongside the cast shadow, rather than leaving the Base Plate static.
+_Avoid_: Camera tilt, whole-page parallax
 
 **Shadow Caster**:
 The silhouette, alpha mask, or procedural geometry source that defines the shape blocking light to produce a shadow.
