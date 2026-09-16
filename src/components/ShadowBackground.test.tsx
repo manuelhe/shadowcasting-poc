@@ -25,7 +25,10 @@ import {
   isWebGLSupported,
   resolveShadowEngine,
   resolveScrollInfluence,
+  renderCanvas2dFallback,
+  getPerspectiveTransform,
   EngineErrorBoundary,
+  type Canvas2dFallbackOptions,
   ShadowCasterConfig,
   type MotionPreset,
   type MotionConfig,
@@ -1455,8 +1458,8 @@ describe("<ShadowBackground />", () => {
         // Root data-base-plate-motion reflects true
         expect(stageDiv.getAttribute("data-base-plate-motion")).toBe("true");
 
-        // Background container wrapper receives 3D perspective transform
-        expect(bgContainer.style.transform).toBe("perspective(1000px) rotateX(0deg) rotateY(0deg)");
+        // Background container wrapper receives 3D perspective transform and spring translation
+        expect(bgContainer.style.transform).toBe("perspective(1000px) rotateX(0deg) rotateY(0deg) translate3d(0px, 0px, 0)");
 
         // Dynamic shadow layer does not have duplicate transform applied
         expect(renderLayer.style.transform).toBeUndefined();
@@ -1553,8 +1556,8 @@ describe("<ShadowBackground />", () => {
         expect((branchEl.props as unknown as ProceduralBranchProps).basePlate).toBeUndefined();
       });
 
-      it("performs poster-to-basePlate handover upon dynamic hydration to prevent double shadows", async () => {
-        // SSR: renderToString renders poster when provided
+      it("performs true poster-to-BasePlate cross-fade upon dynamic hydration to prevent double shadows", async () => {
+        // SSR: renderToString renders both Base Plate and distinct poster on top with opacity-100
         const ssrHtmlWithPoster = renderToString(
           <ShadowBackground
             basePlate="/images/base-clean.svg"
@@ -1563,9 +1566,10 @@ describe("<ShadowBackground />", () => {
           />
         );
         expect(ssrHtmlWithPoster).toContain("poster-baked.webp");
-        expect(ssrHtmlWithPoster).not.toContain("base-clean.svg");
+        expect(ssrHtmlWithPoster).toContain("base-clean.svg");
+        expect(ssrHtmlWithPoster).toContain("opacity-100");
 
-        // SSR: renderToString renders basePlate when poster is omitted
+        // SSR: renderToString renders single Base Plate when poster is omitted
         const ssrHtmlWithoutPoster = renderToString(
           <ShadowBackground
             basePlate="/images/base-clean.svg"
@@ -1573,6 +1577,7 @@ describe("<ShadowBackground />", () => {
           />
         );
         expect(ssrHtmlWithoutPoster).toContain("base-clean.svg");
+        expect(ssrHtmlWithoutPoster).not.toContain("poster-baked.webp");
 
         // Client: createRoot dynamic hydration lifecycle
         let idleCallback: (() => void) | null = null;
@@ -1601,27 +1606,86 @@ describe("<ShadowBackground />", () => {
         const stageDiv = rootNode.childNodes[0] as InstanceType<typeof mockElementClass>;
         const bgContainer = stageDiv.childNodes[0] as InstanceType<typeof mockElementClass>;
         const basePlateImg = bgContainer.childNodes[0] as InstanceType<typeof mockElementClass>;
+        const posterImg = bgContainer.childNodes[1] as InstanceType<typeof mockElementClass>;
 
-        // Before dynamic activation: image src is poster
-        const initialSrc = basePlateImg.getAttribute("src") || (basePlateImg as { src?: string }).src || "";
-        expect(initialSrc).toContain("poster-baked.webp");
-        // Dynamic shadow canvas is not yet mounted
-        expect(bgContainer.childNodes[1]).toBeUndefined();
+        // Before dynamic activation: basePlate is at bottom, poster is on top with opacity-100
+        const initialBaseSrc = basePlateImg.getAttribute("src") || (basePlateImg as { src?: string }).src || "";
+        expect(initialBaseSrc).toContain("base-clean.svg");
+        const initialPosterSrc = posterImg.getAttribute("src") || (posterImg as { src?: string }).src || "";
+        expect(initialPosterSrc).toContain("poster-baked.webp");
+        const initialPosterClass = posterImg.getAttribute("class") || (posterImg as { className?: string }).className || "";
+        expect(initialPosterClass).toContain("opacity-100");
+        expect(initialPosterClass).not.toContain("opacity-0");
+        // Dynamic shadow canvas is not yet mounted (child 2 is undefined)
+        expect(bgContainer.childNodes[2]).toBeUndefined();
 
         // Hydrate dynamic tier
         React.act(() => {
           if (idleCallback) (idleCallback as () => void)();
         });
 
-        // After dynamic activation: image src switches to clean basePlate
-        const hydratedSrc = basePlateImg.getAttribute("src") || (basePlateImg as { src?: string }).src || "";
-        expect(hydratedSrc).toContain("base-clean.svg");
-        // Dynamic shadow canvas is now mounted
-        expect(bgContainer.childNodes[1]).toBeDefined();
+        // After dynamic activation: poster transitions to opacity-0 pointer-events-none
+        const hydratedPosterClass = posterImg.getAttribute("class") || (posterImg as { className?: string }).className || "";
+        expect(hydratedPosterClass).toContain("opacity-0");
+        expect(hydratedPosterClass).toContain("pointer-events-none");
+        // Clean base plate remains at the bottom
+        const hydratedBaseSrc = basePlateImg.getAttribute("src") || (basePlateImg as { src?: string }).src || "";
+        expect(hydratedBaseSrc).toContain("base-clean.svg");
+        // Dynamic shadow canvas is now mounted as child 2
+        expect(bgContainer.childNodes[2]).toBeDefined();
 
         React.act(() => {
           root.unmount();
         });
+      });
+
+      it("renders only a single Base Plate image when poster is omitted or identical to basePlate", () => {
+        const identicalPosterHtml = renderToString(
+          <ShadowBackground
+            basePlate="/images/base-clean.svg"
+            poster="/images/base-clean.svg"
+            caster={{ type: "branch" }}
+          />
+        );
+        const omittedPosterHtml = renderToString(
+          <ShadowBackground
+            basePlate="/images/base-clean.svg"
+            caster={{ type: "branch" }}
+          />
+        );
+        expect(identicalPosterHtml).toBe(omittedPosterHtml);
+      });
+
+      it("computes 3D perspective transform with and without translation via getPerspectiveTransform", () => {
+        const tiltOnly = getPerspectiveTransform(5, -10);
+        expect(tiltOnly).toBe("perspective(1000px) rotateX(-10deg) rotateY(5deg)");
+
+        const tiltAndTranslate = getPerspectiveTransform(5, -10, 12, -24);
+        expect(tiltAndTranslate).toBe("perspective(1000px) rotateX(-10deg) rotateY(5deg) translate3d(12px, -24px, 0)");
+      });
+
+      it("constructs Canvas2dShadowEngine fallback element using Canvas2dFallbackOptions and penumbra", () => {
+        const fallbackOptions: Canvas2dFallbackOptions = {
+          basePlate: "/custom-base.jpg",
+          casterSrc: "/custom-caster.svg",
+          offsetX: 15,
+          offsetY: 25,
+          penumbra: 32,
+          shadowOpacity: 0.75,
+          ambientScale: 1.2,
+          shadowColor: "#112233",
+        };
+        const fallback = renderCanvas2dFallback(fallbackOptions);
+
+        const props = fallback.props as unknown as ShadowEngineProps;
+        expect(props.baseImage).toBe("/custom-base.jpg");
+        expect(props.casterImage).toBe("/custom-caster.svg");
+        expect(props.offsetX).toBe(15);
+        expect(props.offsetY).toBe(25);
+        expect(props.blurRadius).toBe(32);
+        expect(props.shadowOpacity).toBe(0.75);
+        expect(props.ambientScale).toBe(1.2);
+        expect(props.shadowColor).toBe("#112233");
       });
     });
   });

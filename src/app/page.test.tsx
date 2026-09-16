@@ -139,7 +139,7 @@ describe("Home Page - Hero Telemetry & Interactive Base Plate Motion Toggle (Iss
     expect(rootContainer.innerHTML).toContain("Production Architecture • ADR-0001 &amp; ADR-0002");
   });
 
-  it("toggles basePlateMotion to true when 'Dynamic Tilt' is clicked and updates telemetry and DOM attributes", async () => {
+  it("toggles basePlateMotion to true when 'Coupled Motion' is clicked and updates telemetry and DOM attributes", async () => {
     await act(async () => {
       root?.render(<Home />);
     });
@@ -149,14 +149,14 @@ describe("Home Page - Hero Telemetry & Interactive Base Plate Motion Toggle (Iss
     expect(telemetryPill?.textContent?.replace(/\s+/g, " ").trim()).toContain("Base Plate: Static (Decoupled)");
     expect(shadowContainer?.getAttribute("data-base-plate-motion")).toBe("false");
 
-    // Locate "Dynamic Tilt" button
+    // Locate "Coupled Motion" button
     const buttons = Array.from(rootContainer.querySelectorAll("button"));
-    const dynamicTiltButton = buttons.find((btn) => btn.textContent?.includes("Dynamic Tilt"));
-    expect(dynamicTiltButton).toBeDefined();
+    const coupledMotionButton = buttons.find((btn) => btn.textContent?.includes("Coupled Motion"));
+    expect(coupledMotionButton).toBeDefined();
 
-    // Click "Dynamic Tilt"
+    // Click "Coupled Motion"
     await act(async () => {
-      dynamicTiltButton?.dispatchEvent(new window.MouseEvent("click", { bubbles: true }) as unknown as Event);
+      coupledMotionButton?.dispatchEvent(new window.MouseEvent("click", { bubbles: true }) as unknown as Event);
     });
 
     // Verify telemetry updates to Dynamic (Coupled)
@@ -174,15 +174,15 @@ describe("Home Page - Hero Telemetry & Interactive Base Plate Motion Toggle (Iss
     const shadowContainer = rootContainer.querySelector('[data-base-plate-motion]');
 
     const buttons = Array.from(rootContainer.querySelectorAll("button"));
-    const dynamicTiltButton = buttons.find((btn) => btn.textContent?.includes("Dynamic Tilt"));
+    const coupledMotionButton = buttons.find((btn) => btn.textContent?.includes("Coupled Motion"));
     const staticButton = buttons.find((btn) => btn.textContent?.includes("Static (Default)"));
 
-    expect(dynamicTiltButton).toBeDefined();
+    expect(coupledMotionButton).toBeDefined();
     expect(staticButton).toBeDefined();
 
-    // Switch to Dynamic Tilt
+    // Switch to Coupled Motion
     await act(async () => {
-      dynamicTiltButton?.dispatchEvent(new window.MouseEvent("click", { bubbles: true }) as unknown as Event);
+      coupledMotionButton?.dispatchEvent(new window.MouseEvent("click", { bubbles: true }) as unknown as Event);
     });
     expect(telemetryPill?.textContent?.replace(/\s+/g, " ").trim()).toContain("Base Plate: Dynamic (Coupled)");
     expect(shadowContainer?.getAttribute("data-base-plate-motion")).toBe("true");

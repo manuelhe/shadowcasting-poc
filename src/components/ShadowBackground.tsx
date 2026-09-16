@@ -147,25 +147,39 @@ export function evaluateHardwareGating(): boolean {
 }
 
 /**
+ * Options for constructing the Canvas2D shadow engine fallback element.
+ */
+export interface Canvas2dFallbackOptions {
+  basePlate?: string;
+  casterSrc: string;
+  offsetX: number;
+  offsetY: number;
+  penumbra: number;
+  shadowOpacity: number;
+  ambientScale?: number;
+  shadowColor?: string;
+}
+
+/**
  * Helper constructing the Canvas2D shadow engine fallback element.
  */
-export function renderCanvas2dFallback(
-  basePlate: string | undefined,
-  casterSrc: string,
-  offsetX: number,
-  offsetY: number,
-  blurRadius: number,
-  shadowOpacity: number,
+export function renderCanvas2dFallback({
+  basePlate,
+  casterSrc,
+  offsetX,
+  offsetY,
+  penumbra,
+  shadowOpacity,
   ambientScale = 1.0,
-  shadowColor = "#000000"
-): React.ReactElement<Record<string, unknown>> {
+  shadowColor = "#000000",
+}: Canvas2dFallbackOptions): React.ReactElement<Record<string, unknown>> {
   return (
     <Canvas2dShadowEngine
       baseImage={basePlate}
       casterImage={casterSrc}
       offsetX={offsetX}
       offsetY={offsetY}
-      blurRadius={blurRadius}
+      blurRadius={penumbra}
       shadowOpacity={shadowOpacity}
       shadowColor={shadowColor}
       ambientScale={ambientScale}
@@ -244,6 +258,22 @@ export function resolveScrollInfluence(influence?: boolean | number): number {
 }
 
 /**
+ * Helper computing the 3D perspective CSS transform string.
+ */
+export function getPerspectiveTransform(
+  skewX: number,
+  skewY: number,
+  translateX?: number,
+  translateY?: number
+): string {
+  const tilt = `perspective(1000px) rotateX(${skewY}deg) rotateY(${skewX}deg)`;
+  if (translateX !== undefined && translateY !== undefined) {
+    return `${tilt} translate3d(${translateX}px, ${translateY}px, 0)`;
+  }
+  return tilt;
+}
+
+/**
  * Parameters for resolving the dynamic shadow synthesis engine.
  */
 export interface ResolveEngineOptions {
@@ -291,16 +321,16 @@ export function resolveShadowEngine({
   switch (caster.type) {
     case "image": {
       const effectiveOpacity = caster.opacity ?? shadowOpacity;
-      const canvasFallback = renderCanvas2dFallback(
+      const canvasFallback = renderCanvas2dFallback({
         basePlate,
-        caster.src,
+        casterSrc: caster.src,
         offsetX,
         offsetY,
-        effectivePenumbra,
-        effectiveOpacity,
-        1.0,
-        shadowColor
-      );
+        penumbra: effectivePenumbra,
+        shadowOpacity: effectiveOpacity,
+        ambientScale: 1.0,
+        shadowColor,
+      });
 
       if (useCanvasFallback) {
         return canvasFallback;
@@ -540,10 +570,10 @@ export const ShadowBackground = React.forwardRef<
     isDynamicMounted;
   const isMotionActive = isDynamicActive && !isMotionDisabled;
 
-  // Poster-to-basePlate handover:
-  // Render poster during SSR / initial static state to lock LCP without layout shift.
-  // Switch to basePlate once dynamic canvas mounts to prevent double-shadow artifacts.
-  const activeImageSrc = poster && !isDynamicActive ? poster : basePlate;
+  // True poster-to-BasePlate cross-fade:
+  // Render Base Plate at the bottom. When poster is distinct, render poster on top
+  // and smoothly fade it out upon dynamic hydration to avoid double-shadow artifacts.
+  const hasDistinctPoster = Boolean(poster && poster !== basePlate);
   const fitClass =
     fit === "contain"
       ? "object-contain"
@@ -578,20 +608,25 @@ export const ShadowBackground = React.forwardRef<
         : {})}
       {...restProps}
     >
-      {/* Background canvas / poster layer */}
+      {/* Base Plate / poster layer */}
       <div
         className="absolute inset-0 pointer-events-none z-0 transform-gpu"
         style={
           basePlateMotion && isMotionActive
             ? {
-                transform: `perspective(1000px) rotateX(${output.skewY}deg) rotateY(${output.skewX}deg)`,
+                transform: getPerspectiveTransform(
+                  output.skewX,
+                  output.skewY,
+                  output.x ?? output.shadowOffsetX,
+                  output.y ?? output.shadowOffsetY
+                ),
               }
             : undefined
         }
       >
-        {/* Static poster image: SSR-safe next/image with priority for zero LCP and 0.000 CLS */}
+        {/* Base Plate image: clean substrate rendered at the bottom */}
         <Image
-          src={activeImageSrc}
+          src={basePlate}
           alt=""
           fill
           priority
@@ -599,6 +634,25 @@ export const ShadowBackground = React.forwardRef<
           className={[fitClass, "transition-opacity duration-300"].filter(Boolean).join(" ")}
           aria-hidden="true"
         />
+
+        {/* Poster image: rendered on top when distinct from Base Plate, cross-fading to opacity-0 upon dynamic hydration */}
+        {hasDistinctPoster && (
+          <Image
+            src={poster!}
+            alt=""
+            fill
+            priority
+            sizes="100vw"
+            className={[
+              fitClass,
+              "transition-opacity duration-300",
+              isDynamicActive ? "opacity-0 pointer-events-none" : "opacity-100",
+            ]
+              .filter(Boolean)
+              .join(" ")}
+            aria-hidden="true"
+          />
+        )}
 
         {/* Dynamic Shadow Synthesis Engine */}
         {isDynamicActive && (
@@ -608,14 +662,14 @@ export const ShadowBackground = React.forwardRef<
               mixBlendMode: blendMode,
               ...(!basePlateMotion && isMotionActive
                 ? {
-                    transform: `perspective(1000px) rotateX(${output.skewY}deg) rotateY(${output.skewX}deg)`,
+                    transform: getPerspectiveTransform(output.skewX, output.skewY),
                   }
                 : {}),
             }}
           >
             {resolveShadowEngine({
               caster,
-              basePlate: basePlateMotion ? basePlate : undefined,
+              basePlate: undefined,
               shadowColor,
               penumbra,
               contactHardening,

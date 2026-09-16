@@ -31,6 +31,8 @@ export function useMotionController(options: UseMotionControllerOptions) {
   const [output, setOutput] = useState<MotionOutput>(() => ({
     shadowOffsetX: 0,
     shadowOffsetY: 0,
+    x: 0,
+    y: 0,
     penumbraMultiplier: 1.0,
     skewX: 0,
     skewY: 0,

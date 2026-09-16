@@ -569,7 +569,7 @@ export default function Home() {
                         : "bg-zinc-950/60 border-zinc-800 text-zinc-400 hover:text-zinc-200 hover:border-zinc-700"
                     }`}
                   >
-                    <span>Dynamic Tilt</span>
+                    <span>Coupled Motion</span>
                     <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-800/80 text-zinc-400 font-mono">
                       Full Scene
                     </span>

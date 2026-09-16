@@ -4,8 +4,6 @@ import React, { useRef, useEffect } from "react";
 import { ShadowEngineProps } from "./CssShadowEngine";
 import { parseColorToRgb } from "./color-utils";
 
-export { parseColorToRgb };
-
 export interface WebGlShadowEngineProps extends ShadowEngineProps {
   contactHardening?: boolean;
 }

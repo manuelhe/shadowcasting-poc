@@ -83,7 +83,7 @@ We evaluated three potential strategies for separating Base Plate stability from
   2. The **Shadow Synthesis Engines** (WebGL Poisson-disk, Canvas 2D fallback, procedural Komorebi, and parametric Branch) render exclusively the shadow geometry and alpha mask onto a clear, transparent canvas buffer (`glClearColor(0.0, 0.0, 0.0, 0.0)`).
   3. The transparent shadow canvas is layered directly over the static DOM Base Plate and composited natively using CSS `mix-blend-mode: multiply`.
   4. Spring-damped 3D perspective tilt is applied strictly to the shadow canvas container, with a **5% bleed overscan margin** (`inset-[-5%]`) to eliminate rectangular clipping seams.
-  5. Upon dynamic engine hydration, the DOM background image performs a 300ms transition from the pre-baked SSR composite poster to the clean Base Plate, preventing double-shadow artifacts.
+  5. Upon dynamic engine hydration, the DOM Base Plate performs a 300ms transition from the pre-baked SSR composite poster to the clean Base Plate, preventing double-shadow artifacts.
 
 ---
 
@@ -165,7 +165,7 @@ All underlying shadow synthesis engines are updated to operate in transparent al
    - Draws pure shadow silhouettes with alpha Gaussian blur and opacity multipliers without blitting or allocating the Base Plate image.
 
 3. **Procedural Komorebi Engine (`ProceduralKomorebiEngine`)**:
-   - Simplex fBm noise is evaluated directly into the fragment shader's alpha channel over a transparent backdrop.
+   - Simplex fBm noise is evaluated directly into the fragment shader's alpha channel over a transparent Base Plate.
    - Operates with **0 KB texture allocation** and **0 KB heap memory**.
 
 4. **Procedural Branch Engine (`ProceduralBranchEngine`)**:
@@ -411,7 +411,7 @@ export interface ShadowEngineProps {
 4. **Zero Edge Clipping Seams**:
    The 5% bleed overscan margin (`inset-[-5%]`) with scaling mathematically guarantees that 3D perspective rotation (up to ±15°) never exposes rectangular canvas edges within the viewport.
 5. **Universal Substrate Flexibility**:
-   Because shadows are rendered onto a transparent canvas with `mix-blend-mode: multiply`, they can be cast over any DOM element—including CSS linear/radial gradients, video backdrops, animated SVG graphics, or standard Next.js images.
+   Because shadows are rendered onto a transparent canvas with `mix-blend-mode: multiply`, they can be cast over any DOM element—including CSS linear/radial gradients, video Base Plates, animated SVG graphics, or standard Next.js images.
 6. **Elimination of Double-Shadow Hydration Artifacts**:
    The dynamic poster handover cleanly swaps the pre-rendered composite poster for the clean Base Plate during dynamic mount, preventing double-shadow darkening.
 7. **Developer Ergonomics & Opt-in Flexibility**:
