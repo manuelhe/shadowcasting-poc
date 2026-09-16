@@ -5,6 +5,7 @@ import { DiagnosticHUD, HarnessSettings } from "@/components/DiagnosticHUD";
 import { PlaygroundCanvas } from "@/components/PlaygroundCanvas";
 import { BenchmarkComparison } from "@/components/BenchmarkComparison";
 import { ProceduralFoliageHarness } from "@/components/ProceduralFoliageHarness";
+import { InteractiveMotionHarness } from "@/components/InteractiveMotionHarness";
 import { Activity, ShieldCheck, Gauge, ExternalLink, GitBranch } from "lucide-react";
 
 export default function Home() {
@@ -82,6 +83,11 @@ export default function Home() {
         {/* Procedural Foliage & Komorebi Generator Section (Issue #6) */}
         <section aria-label="Procedural Foliage" className="w-full mt-6">
           <ProceduralFoliageHarness />
+        </section>
+
+        {/* Composable Interactive Motion & Parallax Section (Issue #7) */}
+        <section aria-label="Interactive Motion" className="w-full mt-6">
+          <InteractiveMotionHarness />
         </section>
 
         {/* Technical Architecture Notes & Research Grounding */}
