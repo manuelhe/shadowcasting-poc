@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   ShadowBackground,
   type ShadowCasterConfig,
@@ -13,6 +13,7 @@ import { PlaygroundCanvas } from "@/components/PlaygroundCanvas";
 import { BenchmarkComparison } from "@/components/BenchmarkComparison";
 import { ProceduralFoliageHarness } from "@/components/ProceduralFoliageHarness";
 import { InteractiveMotionHarness } from "@/components/InteractiveMotionHarness";
+import { globalVitalsTracker, type VitalsSnapshot } from "@/lib/web-vitals";
 import {
   Activity,
   ShieldCheck,
@@ -57,7 +58,7 @@ const CASTERS: Record<
   },
   image: {
     label: "Raster Branch Image",
-    badge: "Alpha Mask",
+    badge: "Silhouette Caster",
     config: {
       type: "image",
       src: "/images/caster-branch.svg",
@@ -90,6 +91,19 @@ export default function Home() {
   const [heroPenumbra, setHeroPenumbra] = useState<number>(24);
   const [heroBasePlate, setHeroBasePlate] = useState<string>("/images/base-minimal-studio.svg");
   const [ctaClickCount, setCtaClickCount] = useState<number>(0);
+  const [vitals, setVitals] = useState<VitalsSnapshot>({
+    lcp: null,
+    inp: null,
+    cls: null,
+    fcp: null,
+    ttfb: null,
+  });
+
+  useEffect(() => {
+    return globalVitalsTracker.subscribe((snapshot) => {
+      setVitals(snapshot);
+    });
+  }, []);
 
   // ---------------------------------------------------------------------------
   // 2. Prototype Harness Navigation & Legacy Settings
@@ -180,15 +194,33 @@ export default function Home() {
             </span>
             <span className="text-zinc-600 hidden sm:inline">|</span>
             <span className="text-zinc-300 font-mono text-[11px]">
-              LCP Target: <span className="text-emerald-400">&le; 1.2s</span> (SSR Poster Floor)
+              LCP Target:{" "}
+              <span className="text-emerald-400 font-semibold">
+                {vitals.lcp ? vitals.lcp.formatted : "≤ 1.2s"}
+              </span>{" "}
+              <span className="text-zinc-500 font-sans">
+                {vitals.lcp ? `(${vitals.lcp.rating})` : "(SSR Poster Floor)"}
+              </span>
             </span>
             <span className="text-zinc-600 hidden sm:inline">•</span>
             <span className="text-zinc-300 font-mono text-[11px]">
-              CLS: <span className="text-emerald-400">0.000</span> (Strict Containment)
+              CLS:{" "}
+              <span className="text-emerald-400 font-semibold">
+                {vitals.cls ? vitals.cls.formatted : "0.000"}
+              </span>{" "}
+              <span className="text-zinc-500 font-sans">
+                {vitals.cls ? `(${vitals.cls.rating})` : "(Strict Containment)"}
+              </span>
             </span>
             <span className="text-zinc-600 hidden md:inline">•</span>
             <span className="text-zinc-300 font-mono text-[11px]">
-              INP: <span className="text-emerald-400">&le; 16ms</span> (Semi-implicit Euler)
+              INP:{" "}
+              <span className="text-emerald-400 font-semibold">
+                {vitals.inp ? vitals.inp.formatted : "≤ 16ms"}
+              </span>{" "}
+              <span className="text-zinc-500 font-sans">
+                {vitals.inp ? `(${vitals.inp.rating})` : "(Semi-implicit Euler)"}
+              </span>
             </span>
           </div>
 

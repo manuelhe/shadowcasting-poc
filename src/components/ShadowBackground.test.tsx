@@ -111,6 +111,43 @@ describe("<ShadowBackground />", () => {
 
       expect(html).toContain("relative w-full h-full overflow-hidden custom-hero-banner");
     });
+
+    it("forwards standard HTML attributes (id, role, data-testid, aria-label) to the container", () => {
+      const html = renderToString(
+        <ShadowBackground
+          id="hero-bg"
+          role="region"
+          aria-label="Dynamic ambient shadow background"
+          data-testid="shadow-container"
+          basePlate="/images/base.svg"
+          caster={{ type: "branch" }}
+        />
+      );
+
+      expect(html).toContain('id="hero-bg"');
+      expect(html).toContain('role="region"');
+      expect(html).toContain('aria-label="Dynamic ambient shadow background"');
+      expect(html).toContain('data-testid="shadow-container"');
+    });
+
+    it("supports blendMode ('multiply' and 'normal') and reflects on container data-blend-mode", () => {
+      const htmlDefault = renderToString(
+        <ShadowBackground
+          basePlate="/images/base.svg"
+          caster={{ type: "branch" }}
+        />
+      );
+      expect(htmlDefault).toContain('data-blend-mode="multiply"');
+
+      const htmlNormal = renderToString(
+        <ShadowBackground
+          blendMode="normal"
+          basePlate="/images/base.svg"
+          caster={{ type: "branch" }}
+        />
+      );
+      expect(htmlNormal).toContain('data-blend-mode="normal"');
+    });
   });
 
   describe("2. Stacking Context & Foreground Children", () => {
@@ -1037,7 +1074,11 @@ describe("<ShadowBackground />", () => {
       });
     });
 
-    it("registers touchAction: none and coordinates event handlers when dynamic motion is active", async () => {
+    it("registers touchAction: pan-y and coordinates event handlers when dynamic motion is active", async () => {
+      const { createRoot } = await import("react-dom/client");
+      const rootNode = new mockElementClass(1, "DIV");
+      const root = createRoot(rootNode as unknown as HTMLElement);
+
       let idleCallback: (() => void) | null = null;
       (window as unknown as { requestIdleCallback: (cb: () => void) => number }).requestIdleCallback = vi.fn(
         (cb: () => void) => {
@@ -1045,10 +1086,6 @@ describe("<ShadowBackground />", () => {
           return 1;
         }
       );
-
-      const { createRoot } = await import("react-dom/client");
-      const rootNode = new mockElementClass(1, "DIV");
-      const root = createRoot(rootNode as unknown as HTMLElement);
 
       React.act(() => {
         root.render(
@@ -1068,7 +1105,104 @@ describe("<ShadowBackground />", () => {
 
       const stageDiv = rootNode.childNodes[0] as InstanceType<typeof mockElementClass>;
       expect(stageDiv.getAttribute("data-motion-active")).toBe("true");
-      expect(stageDiv.style.touchAction).toBe("none");
+      expect(stageDiv.style.touchAction).toBe("pan-y");
+
+      React.act(() => {
+        root.unmount();
+      });
+    });
+
+    it("forwards ref to the outer container element via React.forwardRef", async () => {
+      const { createRoot } = await import("react-dom/client");
+      const rootNode = new mockElementClass(1, "DIV");
+      const root = createRoot(rootNode as unknown as HTMLElement);
+
+      const refObject = React.createRef<HTMLDivElement>();
+      let callbackRefNode: HTMLDivElement | null = null;
+
+      React.act(() => {
+        root.render(
+          <ShadowBackground
+            ref={(node) => {
+              callbackRefNode = node;
+            }}
+            basePlate="/images/base.svg"
+            caster={{ type: "branch" }}
+            degradation="force-static"
+          />
+        );
+      });
+
+      expect(callbackRefNode).not.toBeNull();
+      expect((callbackRefNode as unknown as { tagName: string }).tagName).toBe("DIV");
+
+      React.act(() => {
+        root.render(
+          <ShadowBackground
+            ref={refObject}
+            basePlate="/images/base.svg"
+            caster={{ type: "branch" }}
+            degradation="force-static"
+          />
+        );
+      });
+
+      expect(refObject.current).not.toBeNull();
+      expect((refObject.current as unknown as { tagName: string }).tagName).toBe("DIV");
+
+      React.act(() => {
+        root.unmount();
+      });
+    });
+
+    it("triggers onTierChange callback on initial static-poster tier", async () => {
+      const { createRoot } = await import("react-dom/client");
+      const rootNode = new mockElementClass(1, "DIV");
+      const root = createRoot(rootNode as unknown as HTMLElement);
+
+      const tierSpy = vi.fn();
+
+      React.act(() => {
+        root.render(
+          <ShadowBackground
+            tier="force-static"
+            onTierChange={tierSpy}
+            basePlate="/images/base.svg"
+            caster={{ type: "branch" }}
+          />
+        );
+      });
+
+      expect(tierSpy).toHaveBeenCalledWith("static-poster");
+
+      React.act(() => {
+        root.unmount();
+      });
+    });
+
+    it("supports canonical ambientMotion config alongside ambient", async () => {
+      const motionModule = await import("../hooks/useMotionController");
+      const spy = vi.spyOn(motionModule, "useMotionController");
+
+      const { createRoot } = await import("react-dom/client");
+      const rootNode = new mockElementClass(1, "DIV");
+      const root = createRoot(rootNode as unknown as HTMLElement);
+
+      React.act(() => {
+        root.render(
+          <ShadowBackground
+            basePlate="/images/base.svg"
+            caster={{ type: "branch" }}
+            motion={{ preset: "snappy", ambientMotion: false }}
+          />
+        );
+      });
+
+      expect(spy).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          ambientMotion: false,
+        })
+      );
 
       React.act(() => {
         root.unmount();

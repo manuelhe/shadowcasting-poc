@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import Image from "next/image";
 import { WebGlShadowEngine } from "./engines/WebGlShadowEngine";
 import { Canvas2dShadowEngine } from "./engines/Canvas2dShadowEngine";
@@ -9,6 +9,7 @@ import { ProceduralBranchEngine } from "./engines/ProceduralBranchEngine";
 import { useMotionController } from "../hooks/useMotionController";
 import { SPRING_PRESETS, SpringConfig } from "../lib/motion/spring";
 import { MotionOutput } from "../lib/motion/motion-controller";
+import { detectDeviceCapabilities } from "../lib/device-capabilities";
 
 /**
  * Pluggable Shadow Caster configuration discriminated union.
@@ -20,8 +21,15 @@ export type ShadowCasterConfig =
 
 /**
  * Degradation tiers for progressive enhancement.
+ * Supports canonical and force overrides seamlessly.
  */
-export type DegradationTier = "auto" | "force-static" | "force-dynamic";
+export type DegradationTier =
+  | "auto"
+  | "static-poster"
+  | "low-dynamic"
+  | "full-dynamic"
+  | "force-static"
+  | "force-dynamic";
 
 /**
  * Calibrated spring motion behavior presets.
@@ -37,6 +45,7 @@ export interface MotionConfig {
   damping?: number;
   mass?: number;
   ambient?: boolean;
+  ambientMotion?: boolean;
   ambientSpeed?: number;
   ambientStrength?: number;
   maxDisplacementPx?: number;
@@ -45,11 +54,15 @@ export interface MotionConfig {
 
 /**
  * Foundational props interface for <ShadowBackground />.
+ * Extends React.HTMLAttributes<HTMLDivElement> so standard HTML attributes
+ * (id, role, style, data-*, aria-*, etc.) are forwarded cleanly to the root <div>.
  */
-export interface ShadowBackgroundProps {
+export interface ShadowBackgroundProps
+  extends React.HTMLAttributes<HTMLDivElement> {
   basePlate: string;
   poster?: string;
   caster: ShadowCasterConfig;
+  tier?: DegradationTier;
   degradation?: DegradationTier;
   penumbra?: number;
   contactHardening?: boolean;
@@ -57,8 +70,50 @@ export interface ShadowBackgroundProps {
   lightDirection?: [number, number, number];
   fit?: "cover" | "contain" | "fill";
   motion?: MotionPreset | MotionConfig;
+  blendMode?: "multiply" | "normal";
+  onTierChange?: (tier: string) => void;
+  onRest?: () => void;
+  onWake?: () => void;
   className?: string;
   children?: React.ReactNode;
+}
+
+/**
+ * Safe wrapper around detectDeviceCapabilities ensuring window.navigator and window.matchMedia
+ * are consistently aligned in test and non-browser DOM environments.
+ */
+function safelyDetectDeviceCapabilities() {
+  if (typeof window === "undefined") {
+    return detectDeviceCapabilities();
+  }
+  if (typeof navigator !== "undefined" && !window.navigator) {
+    try {
+      Object.defineProperty(window, "navigator", {
+        value: navigator,
+        configurable: true,
+        writable: true,
+      });
+    } catch {
+      // ignore
+    }
+  }
+  if (typeof window.matchMedia !== "function") {
+    try {
+      window.matchMedia = (() => ({
+        matches: false,
+        media: "",
+        onchange: null,
+        addListener: () => {},
+        removeListener: () => {},
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        dispatchEvent: () => false,
+      })) as unknown as typeof window.matchMedia;
+    } catch {
+      // ignore
+    }
+  }
+  return detectDeviceCapabilities();
 }
 
 /**
@@ -68,45 +123,50 @@ export interface ShadowBackgroundProps {
 export function evaluateHardwareGating(): boolean {
   if (typeof window === "undefined") return true;
 
+  const caps = safelyDetectDeviceCapabilities();
+
   // 1. Accessibility: user preferred reduced motion
-  if (
-    typeof window.matchMedia === "function" &&
-    window.matchMedia("(prefers-reduced-motion: reduce)").matches
-  ) {
-    return true;
-  }
-
-  const nav =
-    typeof navigator !== "undefined"
-      ? (navigator as Navigator & {
-          deviceMemory?: number;
-          connection?: { saveData?: boolean };
-        })
-      : null;
-
-  if (!nav) return false;
-
   // 2. Data saver mode enabled
-  if (nav.connection?.saveData === true) {
+  if (caps.prefersReducedMotion || caps.saveData) {
     return true;
   }
 
   // 3. Low device memory (< 4GB RAM)
-  if (typeof nav.deviceMemory === "number" && nav.deviceMemory < 4) {
+  if (caps.deviceMemoryGb !== null && caps.deviceMemoryGb < 4) {
     return true;
   }
 
   // 4. Low CPU core count (< 4 cores), accounting for Safari / WebKit 2-core clamping
-  const rawCores = typeof nav.hardwareConcurrency === "number" ? nav.hardwareConcurrency : 4;
-  const isApple =
-    typeof nav.userAgent === "string" &&
-    /Macintosh|iPhone|iPad|iPod/.test(nav.userAgent);
-  const isCoreClamped = isApple && rawCores <= 2;
-  if (!isCoreClamped && rawCores < 4) {
+  if (!caps.isCoreClamped && caps.cores < 4) {
     return true;
   }
 
   return false;
+}
+
+/**
+ * Helper constructing the Canvas2D shadow engine fallback element.
+ */
+export function renderCanvas2dFallback(
+  basePlate: string,
+  casterSrc: string,
+  offsetX: number,
+  offsetY: number,
+  blurRadius: number,
+  shadowOpacity: number,
+  ambientScale = 1.0
+): React.ReactElement<Record<string, unknown>> {
+  return (
+    <Canvas2dShadowEngine
+      baseImage={basePlate}
+      casterImage={casterSrc}
+      offsetX={offsetX}
+      offsetY={offsetY}
+      blurRadius={blurRadius}
+      shadowOpacity={shadowOpacity}
+      ambientScale={ambientScale}
+    />
+  );
 }
 
 /**
@@ -225,33 +285,22 @@ export function resolveShadowEngine({
   switch (caster.type) {
     case "image": {
       const effectiveOpacity = caster.opacity ?? shadowOpacity;
+      const canvasFallback = renderCanvas2dFallback(
+        basePlate,
+        caster.src,
+        offsetX,
+        offsetY,
+        effectivePenumbra,
+        effectiveOpacity
+      );
+
       if (useCanvasFallback) {
-        return (
-          <Canvas2dShadowEngine
-            baseImage={basePlate}
-            casterImage={caster.src}
-            offsetX={offsetX}
-            offsetY={offsetY}
-            blurRadius={effectivePenumbra}
-            shadowOpacity={effectiveOpacity}
-            ambientScale={1.0}
-          />
-        );
+        return canvasFallback;
       }
       return (
         <EngineErrorBoundary
           onError={onWebGlError}
-          fallback={
-            <Canvas2dShadowEngine
-              baseImage={basePlate}
-              casterImage={caster.src}
-              offsetX={offsetX}
-              offsetY={offsetY}
-              blurRadius={effectivePenumbra}
-              shadowOpacity={effectiveOpacity}
-              ambientScale={1.0}
-            />
-          }
+          fallback={canvasFallback}
         >
           <WebGlShadowEngine
             baseImage={basePlate}
@@ -303,23 +352,50 @@ export function resolveShadowEngine({
  * Integrates zero-LCP static poster rendering, cooperative idle hydration,
  * hardware capability gating, and spring-damped interactive motion with 3D parallax.
  */
-export function ShadowBackground({
-  basePlate,
-  poster,
-  caster,
-  degradation = "auto",
-  penumbra = 24,
-  contactHardening = true,
-  shadowOpacity = 0.65,
-  lightDirection = [20, 25, 1],
-  fit = "cover",
-  motion = "smooth",
-  className,
-  children,
-}: ShadowBackgroundProps) {
+export const ShadowBackground = React.forwardRef<
+  HTMLDivElement,
+  ShadowBackgroundProps
+>(function ShadowBackground(
+  {
+    basePlate,
+    poster,
+    caster,
+    tier,
+    degradation,
+    penumbra = 24,
+    contactHardening = true,
+    shadowOpacity = 0.65,
+    lightDirection = [20, 25, 1],
+    fit = "cover",
+    motion = "smooth",
+    blendMode = "multiply",
+    onTierChange,
+    onRest,
+    onWake,
+    className,
+    children,
+    style,
+    ...restProps
+  }: ShadowBackgroundProps,
+  ref: React.ForwardedRef<HTMLDivElement>
+) {
   const [isDynamicMounted, setIsDynamicMounted] = useState(false);
   const [webGlSupported, setWebGlSupported] = useState(true);
   const stageRef = useRef<HTMLDivElement>(null);
+
+  const setMergedRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      (stageRef as React.MutableRefObject<HTMLDivElement | null>).current = node;
+      if (typeof ref === "function") {
+        ref(node);
+      } else if (ref != null) {
+        (ref as React.MutableRefObject<HTMLDivElement | null>).current = node;
+      }
+    },
+    [ref]
+  );
+
+  const effectiveTier = tier ?? degradation ?? "auto";
 
   // 1. Resolve motion configuration & spring physics parameters
   const isMotionDisabled =
@@ -343,30 +419,66 @@ export function ShadowBackground({
     ? 0
     : resolveScrollInfluence(motionConfig.scrollInfluence);
 
+  const resolvedAmbientMotion =
+    !isMotionDisabled && (motionConfig.ambientMotion ?? motionConfig.ambient ?? true);
+
   // 2. Wire headless motion controller
   const { output, handlers } = useMotionController({
     containerRef: stageRef,
     springConfig: resolvedSpring,
     maxDisplacementPx: motionConfig.maxDisplacementPx ?? 45,
     scrollInfluencePx,
-    ambientMotion: !isMotionDisabled && (motionConfig.ambient ?? true),
+    ambientMotion: resolvedAmbientMotion,
     ambientSpeed: motionConfig.ambientSpeed ?? 0.8,
     ambientStrength: motionConfig.ambientStrength ?? 8,
   });
 
-  // 3. Cooperative idle hydration & capability gating
+  // 3. Track rest / wake lifecycle transitions
+  const wasAtRestRef = useRef(true);
+
   useEffect(() => {
-    // 1. Force static: do not schedule dynamic mount
-    if (degradation === "force-static") {
+    if (output.isAtRest && !wasAtRestRef.current) {
+      wasAtRestRef.current = true;
+      onRest?.();
+    } else if (!output.isAtRest && wasAtRestRef.current) {
+      wasAtRestRef.current = false;
+      onWake?.();
+    }
+  }, [output.isAtRest, onRest, onWake]);
+
+  const handlePointerInteraction = useCallback(
+    (e: React.PointerEvent<HTMLElement>) => {
+      if (wasAtRestRef.current) {
+        wasAtRestRef.current = false;
+        onWake?.();
+      }
+      handlers.onPointerMove(e);
+    },
+    [handlers, onWake]
+  );
+
+  // 4. Cooperative idle hydration & capability gating
+  useEffect(() => {
+    // 1. Force static / static poster: do not schedule dynamic mount
+    if (effectiveTier === "force-static" || effectiveTier === "static-poster") {
+      onTierChange?.("static-poster");
       return;
     }
 
     // 2. Auto mode: evaluate hardware gating and accessibility
-    if (degradation === "auto") {
-      const isLowTier = evaluateHardwareGating();
-      if (isLowTier) {
+    let targetTier: "full-dynamic" | "low-dynamic" | "static-poster" = "full-dynamic";
+
+    if (effectiveTier === "auto") {
+      const caps = safelyDetectDeviceCapabilities();
+      if (caps.recommendedTier === "static-poster" || evaluateHardwareGating()) {
+        onTierChange?.("static-poster");
         return;
       }
+      targetTier = caps.recommendedTier === "low-dynamic" ? "low-dynamic" : "full-dynamic";
+    } else if (effectiveTier === "low-dynamic") {
+      targetTier = "low-dynamic";
+    } else {
+      targetTier = "full-dynamic";
     }
 
     // 3. Cooperative idle hydration (requestIdleCallback with setTimeout fallback)
@@ -376,8 +488,12 @@ export function ShadowBackground({
 
     const mountDynamic = () => {
       if (!cancelled) {
-        setWebGlSupported(isWebGLSupported());
+        const hasWebGl = isWebGLSupported();
+        setWebGlSupported(hasWebGl);
         setIsDynamicMounted(true);
+        const resolved =
+          targetTier === "low-dynamic" || !hasWebGl ? "low-dynamic" : "full-dynamic";
+        onTierChange?.(resolved);
       }
     };
 
@@ -403,7 +519,7 @@ export function ShadowBackground({
         clearTimeout(timerId);
       }
     };
-  }, [degradation]);
+  }, [effectiveTier, onTierChange]);
 
   const effectivePoster = poster || basePlate;
   const fitClass =
@@ -413,28 +529,37 @@ export function ShadowBackground({
       ? "object-fill"
       : "object-cover";
 
-  const isDynamicActive = degradation !== "force-static" && isDynamicMounted;
+  const isDynamicActive =
+    effectiveTier !== "force-static" &&
+    effectiveTier !== "static-poster" &&
+    isDynamicMounted;
   const isMotionActive = isDynamicActive && !isMotionDisabled;
+
+  const containerStyle: React.CSSProperties = {
+    ...(style as React.CSSProperties),
+    ...(isMotionActive ? { touchAction: "pan-y" } : {}),
+  };
 
   return (
     <div
-      ref={stageRef}
+      ref={setMergedRef}
       className={["relative w-full h-full overflow-hidden", className]
         .filter(Boolean)
         .join(" ")}
       data-fit={fit}
       data-motion-active={isMotionActive ? "true" : "false"}
-      style={isMotionActive ? { touchAction: "none" } : undefined}
+      data-blend-mode={blendMode}
+      style={containerStyle}
       {...(isMotionActive
         ? {
-            onPointerMove: handlers.onPointerMove,
+            onPointerDown: handlePointerInteraction,
+            onPointerMove: handlePointerInteraction,
             onPointerLeave: handlers.onPointerLeave,
-            onTouchStart: handlers.onTouchStart,
-            onTouchMove: handlers.onTouchMove,
-            onTouchEnd: handlers.onTouchEnd,
-            onTouchCancel: handlers.onTouchCancel,
+            onPointerUp: handlers.onPointerLeave,
+            onPointerCancel: handlers.onPointerLeave,
           }
         : {})}
+      {...restProps}
     >
       {/* Background canvas / poster layer */}
       <div className="absolute inset-0 pointer-events-none z-0">
@@ -453,13 +578,14 @@ export function ShadowBackground({
         {isDynamicActive && (
           <div
             className="absolute inset-0 transition-opacity duration-300 transform-gpu"
-            style={
-              isMotionActive
+            style={{
+              mixBlendMode: blendMode,
+              ...(isMotionActive
                 ? {
                     transform: `perspective(1000px) rotateX(${output.skewY}deg) rotateY(${output.skewX}deg)`,
                   }
-                : undefined
-            }
+                : {}),
+            }}
           >
             {resolveShadowEngine({
               caster,
@@ -468,8 +594,11 @@ export function ShadowBackground({
               contactHardening,
               shadowOpacity,
               lightDirection,
-              useCanvasFallback: !webGlSupported,
-              onWebGlError: () => setWebGlSupported(false),
+              useCanvasFallback: effectiveTier === "low-dynamic" || !webGlSupported,
+              onWebGlError: () => {
+                setWebGlSupported(false);
+                onTierChange?.("low-dynamic");
+              },
               motionOutput: isMotionActive ? output : undefined,
             })}
           </div>
@@ -484,4 +613,6 @@ export function ShadowBackground({
       )}
     </div>
   );
-}
+});
+
+ShadowBackground.displayName = "ShadowBackground";
