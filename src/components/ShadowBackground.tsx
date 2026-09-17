@@ -15,6 +15,7 @@ import { detectDeviceCapabilities } from "../lib/device-capabilities";
  * Pluggable Shadow Caster configuration discriminated union.
  */
 export type ShadowCasterConfig =
+  | string
   | { type: "image"; src: string; opacity?: number }
   | { type: "komorebi"; density?: number; contrast?: number; scale?: number; speed?: number }
   | { type: "branch"; depth?: number; leafDensity?: number; swaySpeed?: number };
@@ -318,12 +319,15 @@ export function resolveShadowEngine({
     ? 0.8 + Math.abs(motionOutput.shadowOffsetX) * 0.02
     : 0.8;
 
-  switch (caster.type) {
+  const normalizedCaster =
+    typeof caster === "string" ? { type: "image" as const, src: caster } : caster;
+
+  switch (normalizedCaster.type) {
     case "image": {
-      const effectiveOpacity = caster.opacity ?? shadowOpacity;
+      const effectiveOpacity = normalizedCaster.opacity ?? shadowOpacity;
       const canvasFallback = renderCanvas2dFallback({
         basePlate,
-        casterSrc: caster.src,
+        casterSrc: normalizedCaster.src,
         offsetX,
         offsetY,
         penumbra: effectivePenumbra,
@@ -342,7 +346,7 @@ export function resolveShadowEngine({
         >
           <WebGlShadowEngine
             baseImage={basePlate}
-            casterImage={caster.src}
+            casterImage={normalizedCaster.src}
             offsetX={offsetX}
             offsetY={offsetY}
             blurRadius={effectivePenumbra}
@@ -360,10 +364,10 @@ export function resolveShadowEngine({
         <ProceduralKomorebiEngine
           basePlate={basePlate}
           shadowColor={shadowColor}
-          shadowOpacity={shadowOpacity * (caster.density ?? 1.0)}
-          scale={caster.scale ?? 3.5}
-          speed={caster.speed ?? 0.5}
-          contrast={caster.contrast ?? 1.2}
+          shadowOpacity={shadowOpacity * (normalizedCaster.density ?? 1.0)}
+          scale={normalizedCaster.scale ?? 3.5}
+          speed={normalizedCaster.speed ?? 0.5}
+          contrast={normalizedCaster.contrast ?? 1.2}
           windAngle={windAngle}
           mode={useCanvasFallback ? "cpu" : "gpu"}
         />
@@ -378,9 +382,9 @@ export function resolveShadowEngine({
           shadowOpacity={shadowOpacity}
           penumbraRadius={effectivePenumbra}
           windStrength={windStrength}
-          swaySpeed={caster.swaySpeed ?? 0.7}
-          branchDepth={caster.depth ?? 4}
-          leafDensity={caster.leafDensity ?? 5}
+          swaySpeed={normalizedCaster.swaySpeed ?? 0.7}
+          branchDepth={normalizedCaster.depth ?? 4}
+          leafDensity={normalizedCaster.leafDensity ?? 5}
         />
       );
     }
