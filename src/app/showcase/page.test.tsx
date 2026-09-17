@@ -101,7 +101,7 @@ describe("Showcase Gallery Hub & Shell Navigation (Issue #22)", () => {
     expect(rootContainer.textContent).toContain("Poisson Disk Soft Shadow");
   });
 
-  it("renders ShowcaseNav floating navbar with all 6 navigation links", async () => {
+  it("renders ShowcaseNav floating navbar with all 7 navigation links", async () => {
     currentPathname.value = "/showcase";
 
     await act(async () => {
@@ -112,7 +112,7 @@ describe("Showcase Gallery Hub & Shell Navigation (Issue #22)", () => {
     expect(nav).not.toBeNull();
 
     const links = Array.from(rootContainer.querySelectorAll("a"));
-    expect(links).toHaveLength(6);
+    expect(links).toHaveLength(7);
 
     const hrefs = links.map((l) => l.getAttribute("href"));
     expect(hrefs).toEqual([
@@ -122,6 +122,7 @@ describe("Showcase Gallery Hub & Shell Navigation (Issue #22)", () => {
       "/showcase/decayed-paint",
       "/showcase/scroll-top",
       "/showcase/scroll-mid",
+      "/conclusions",
     ]);
 
     const labels = links.map((l) => l.textContent?.trim());
@@ -132,6 +133,7 @@ describe("Showcase Gallery Hub & Shell Navigation (Issue #22)", () => {
       "Decayed Paint",
       "Scroll Top",
       "Scroll Mid",
+      "Conclusions",
     ]);
   });
 
@@ -171,6 +173,16 @@ describe("Showcase Gallery Hub & Shell Navigation (Issue #22)", () => {
     const playgroundLink = rootContainer.querySelector('a[href="/"]');
     expect(playgroundLink?.getAttribute("aria-current")).toBe("page");
     expect(playgroundLink?.getAttribute("data-active")).toBe("true");
+
+    // 4. On /conclusions: Conclusions should be active
+    currentPathname.value = "/conclusions";
+    await act(async () => {
+      root?.render(<ShowcaseNav />);
+    });
+
+    const conclusionsLink = rootContainer.querySelector('a[href="/conclusions"]');
+    expect(conclusionsLink?.getAttribute("aria-current")).toBe("page");
+    expect(conclusionsLink?.getAttribute("data-active")).toBe("true");
   });
 
   it("renders ShowcaseLayout wrapping children with ShowcaseNav and dark canvas", async () => {

@@ -16,6 +16,7 @@ export const SHOWCASE_NAV_LINKS: ShowcaseNavLink[] = [
   { href: "/showcase/decayed-paint", label: "Decayed Paint" },
   { href: "/showcase/scroll-top", label: "Scroll Top" },
   { href: "/showcase/scroll-mid", label: "Scroll Mid" },
+  { href: "/conclusions", label: "Conclusions" },
 ];
 
 export function ShowcaseNav() {
