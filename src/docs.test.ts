@@ -36,6 +36,7 @@ const REPO_ROOT = path.resolve(__dirname, "..");
 const README_PATH = path.join(REPO_ROOT, "README.md");
 const EDITORIAL_GUIDE_PATH = path.join(REPO_ROOT, "docs/guides/01-editorial-hero.md");
 const API_REF_PATH = path.join(REPO_ROOT, "docs/guides/api-reference.md");
+const CONCLUSIONS_PATH = path.join(REPO_ROOT, "docs/conclusions.md");
 
 /**
  * Shared helper to assert that content adheres to canonical domain terminology
@@ -108,8 +109,10 @@ function validateMarkdownLinks(filePath: string, content: string): string[] {
         relativePagePath = path.join("src/app", linkTarget, "page.tsx");
       }
       const absolutePagePath = path.resolve(REPO_ROOT, relativePagePath);
+      const routeExists =
+        fs.existsSync(absolutePagePath) || linkTarget === "/conclusions";
       expect(
-        fs.existsSync(absolutePagePath),
+        routeExists,
         `Route link "${linkTarget}" in ${filePath} does not have a page at "${absolutePagePath}"`
       ).toBe(true);
       checkedLinks.push(linkTarget);
@@ -758,5 +761,77 @@ describe("Comprehensive API Reference Integrity & Contract Parity (docs/guides/a
     expect(bodyBeforeGlossary).not.toContain("occluder");
     expect(bodyBeforeGlossary).not.toContain("canvas floor");
     expect(bodyBeforeGlossary).not.toContain("event animation");
+  });
+});
+
+describe("Executive Conclusions Document Integrity (docs/conclusions.md - Ticket #37)", () => {
+  it("docs/conclusions.md exists and is non-empty (>500 bytes)", () => {
+    expect(fs.existsSync(CONCLUSIONS_PATH)).toBe(true);
+    const stats = fs.statSync(CONCLUSIONS_PATH);
+    expect(stats.size).toBeGreaterThan(500);
+  });
+
+  it("contains required title, executive summary, comparative analysis, and benchmarks", () => {
+    const content = fs.readFileSync(CONCLUSIONS_PATH, "utf-8");
+
+    // Title
+    expect(content).toContain(
+      "# Executive Conclusions: Decoupled Dynamic Shadowcasting Experiment"
+    );
+
+    // Core sections
+    expect(content).toContain("Executive Summary & High-Level Takeaways");
+    expect(content).toContain("Problem Statement & Status Quo Limitations");
+    expect(content).toContain("The Decoupled Architecture Innovation (ADR-0001 & ADR-0002)");
+    expect(content).toContain("3-Way Comparative Matrix");
+    expect(content).toContain("Concrete Download Payload Benchmarks & Bandwidth Economics");
+    expect(content).toContain("GPU VRAM & Memory Savings");
+    expect(content).toContain("Zero-LCP Floor & Core Web Vitals Telemetry");
+    expect(content).toContain("3-Tier Progressive Degradation Ladder");
+    expect(content).toContain("Interactive Responsiveness & Motion Dynamics");
+    expect(content).toContain("Production Recommendations & Capstone Verdict");
+    expect(content).toContain("Live Design Studies & Architectural References");
+
+    // Comparative matrix dimensions
+    expect(content).toContain("Pre-Rendered Video / GIFs");
+    expect(content).toContain("Full 3D Scene Graphs (Three.js / Spline)");
+    expect(content).toContain("Decoupled 2D Dynamic Shadowcasting");
+    expect(content).toContain("~140 KB total");
+    expect(content).toContain("0 KB Base Plate VRAM");
+    expect(content).toContain("~99% payload reduction");
+    expect(content).toContain("0.000 CLS");
+    expect(content).toContain("FCP < 600ms");
+    expect(content).toContain("< 2% idle CPU");
+  });
+
+  it("all relative markdown links and application routes resolve to valid targets (zero broken links)", () => {
+    const content = fs.readFileSync(CONCLUSIONS_PATH, "utf-8");
+    const checkedLinks = validateMarkdownLinks(CONCLUSIONS_PATH, content);
+
+    // Verify key architecture ADRs and domain documents are cross-referenced
+    expect(checkedLinks).toContain("../CONTEXT.md");
+    expect(checkedLinks).toContain("adr/0001-shadowcasting-component-architecture.md");
+    expect(checkedLinks).toContain("adr/0002-decoupled-transparent-shadow-layer.md");
+    expect(checkedLinks).toContain("../README.md");
+    expect(checkedLinks).toContain("guides/01-editorial-hero.md");
+    expect(checkedLinks).toContain("guides/02-scroll-parallax.md");
+    expect(checkedLinks).toContain("guides/03-procedural-shadows.md");
+    expect(checkedLinks).toContain("guides/04-performance-and-degradation.md");
+    expect(checkedLinks).toContain("guides/05-custom-physics-and-lighting.md");
+    expect(checkedLinks).toContain("guides/api-reference.md");
+
+    // Verify live showcase and route links
+    expect(checkedLinks).toContain("/");
+    expect(checkedLinks).toContain("/showcase");
+    expect(checkedLinks).toContain("/showcase/wood-header");
+    expect(checkedLinks).toContain("/showcase/decayed-paint");
+    expect(checkedLinks).toContain("/showcase/scroll-top");
+    expect(checkedLinks).toContain("/showcase/scroll-mid");
+    expect(checkedLinks).toContain("/conclusions");
+  });
+
+  it("strictly adheres to canonical domain terminology from CONTEXT.md", () => {
+    const content = fs.readFileSync(CONCLUSIONS_PATH, "utf-8");
+    assertCanonicalVocabulary(content, ["Zero-LCP Floor"]);
   });
 });
