@@ -37,6 +37,100 @@ const README_PATH = path.join(REPO_ROOT, "README.md");
 const EDITORIAL_GUIDE_PATH = path.join(REPO_ROOT, "docs/guides/01-editorial-hero.md");
 const API_REF_PATH = path.join(REPO_ROOT, "docs/guides/api-reference.md");
 
+/**
+ * Shared helper to assert that content adheres to canonical domain terminology
+ * from CONTEXT.md and contains no forbidden terms.
+ */
+function assertCanonicalVocabulary(
+  content: string,
+  extraCanonicalTerms: string[] = []
+): void {
+  const canonicalTerms = [
+    "Base Plate",
+    "Shadow Caster",
+    "Penumbra",
+    "Contact Hardening",
+    ...extraCanonicalTerms,
+  ];
+
+  for (const term of canonicalTerms) {
+    expect(content).toContain(term);
+  }
+
+  // Forbidden terms must NOT appear as architectural concepts
+  const forbiddenTerms = [
+    "occluder",
+    "mask image",
+    "canvas floor",
+    "event animation",
+  ];
+
+  const lowercase = content.toLowerCase();
+  for (const forbidden of forbiddenTerms) {
+    expect(lowercase).not.toContain(forbidden);
+  }
+}
+
+/**
+ * Shared helper to validate all markdown links and application route references
+ * within a documentation file against files on disk.
+ */
+function validateMarkdownLinks(filePath: string, content: string): string[] {
+  const absoluteFilePath = path.isAbsolute(filePath)
+    ? filePath
+    : path.resolve(REPO_ROOT, filePath);
+  const fileDir = path.dirname(absoluteFilePath);
+  const markdownLinkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
+  const matches = [...content.matchAll(markdownLinkRegex)];
+  expect(matches.length, `${filePath} should contain markdown links`).toBeGreaterThan(0);
+
+  const checkedLinks: string[] = [];
+
+  for (const match of matches) {
+    const linkTarget = match[2].trim();
+
+    // Skip web links, email links, or intra-document fragment anchors
+    if (
+      linkTarget.startsWith("http://") ||
+      linkTarget.startsWith("https://") ||
+      linkTarget.startsWith("mailto:") ||
+      linkTarget.startsWith("#")
+    ) {
+      continue;
+    }
+
+    // Route link: verify corresponding page exists
+    if (linkTarget.startsWith("/")) {
+      let relativePagePath: string;
+      if (linkTarget === "/") {
+        relativePagePath = "src/app/page.tsx";
+      } else {
+        relativePagePath = path.join("src/app", linkTarget, "page.tsx");
+      }
+      const absolutePagePath = path.resolve(REPO_ROOT, relativePagePath);
+      expect(
+        fs.existsSync(absolutePagePath),
+        `Route link "${linkTarget}" in ${filePath} does not have a page at "${absolutePagePath}"`
+      ).toBe(true);
+      checkedLinks.push(linkTarget);
+      continue;
+    }
+
+    // Relative file link
+    const cleanPath = linkTarget.split("#")[0];
+    if (!cleanPath) continue;
+
+    const absoluteTarget = path.resolve(fileDir, cleanPath);
+    expect(
+      fs.existsSync(absoluteTarget),
+      `Broken relative markdown link "${linkTarget}" in ${filePath} does not exist at "${absoluteTarget}"`
+    ).toBe(true);
+    checkedLinks.push(linkTarget);
+  }
+
+  return checkedLinks;
+}
+
 describe("Documentation Integrity Suite (src/docs.test.ts)", () => {
   it("root README.md exists and is non-empty (>500 bytes)", () => {
     expect(fs.existsSync(README_PATH)).toBe(true);
@@ -235,21 +329,10 @@ describe("Documentation Integrity Suite (src/docs.test.ts)", () => {
 
   it("strictly adheres to canonical domain terminology from CONTEXT.md", () => {
     const readmeContent = fs.readFileSync(README_PATH, "utf-8");
-
-    // Canonical terms must be present
-    expect(readmeContent).toContain("Base Plate");
-    expect(readmeContent).toContain("Shadow Caster");
-    expect(readmeContent).toContain("Penumbra");
-    expect(readmeContent).toContain("Contact Hardening");
-    expect(readmeContent).toContain("Static Poster Fallback");
-    expect(readmeContent).toContain("Degradation Tier");
-
-    // Forbidden terms must NOT be used as architectural concepts in README
-    const lowercase = readmeContent.toLowerCase();
-    expect(lowercase).not.toContain("occluder");
-    expect(lowercase).not.toContain("mask image");
-    expect(lowercase).not.toContain("canvas floor");
-    expect(lowercase).not.toContain("event animation");
+    assertCanonicalVocabulary(readmeContent, [
+      "Static Poster Fallback",
+      "Degradation Tier",
+    ]);
   });
 
   it("documents all primary developer lifecycle commands", () => {
@@ -273,52 +356,8 @@ describe("Documentation Integrity Suite (src/docs.test.ts)", () => {
     // Title verification
     expect(guideContent).toContain("# Scenario Guide: Scroll-Driven Parallax");
 
-    // Extract all markdown links [text](target)
-    const markdownLinkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
-    const matches = [...guideContent.matchAll(markdownLinkRegex)];
-    expect(matches.length).toBeGreaterThan(0);
-
-    const guideDir = path.dirname(guidePath);
-    const checkedLinks: string[] = [];
-
-    for (const match of matches) {
-      const linkTarget = match[2].trim();
-
-      // Skip web links or intra-document fragment anchors
-      if (
-        linkTarget.startsWith("http://") ||
-        linkTarget.startsWith("https://") ||
-        linkTarget.startsWith("#")
-      ) {
-        continue;
-      }
-
-      // If it is a Next.js route link (starts with /)
-      if (linkTarget.startsWith("/")) {
-        let relativePagePath: string;
-        if (linkTarget === "/") {
-          relativePagePath = "src/app/page.tsx";
-        } else {
-          relativePagePath = path.join("src/app", linkTarget, "page.tsx");
-        }
-        const absolutePagePath = path.resolve(REPO_ROOT, relativePagePath);
-        expect(
-          fs.existsSync(absolutePagePath),
-          `Route "${linkTarget}" referenced in 02-scroll-parallax.md must resolve to page at "${absolutePagePath}"`
-        ).toBe(true);
-        checkedLinks.push(linkTarget);
-        continue;
-      }
-
-      // Relative file links
-      const cleanPath = linkTarget.split("#")[0];
-      const absoluteTarget = path.resolve(guideDir, cleanPath);
-      expect(
-        fs.existsSync(absoluteTarget),
-        `Broken relative link found in 02-scroll-parallax.md: target "${linkTarget}" does not exist at "${absoluteTarget}"`
-      ).toBe(true);
-      checkedLinks.push(linkTarget);
-    }
+    // Extract and validate all markdown links
+    const checkedLinks = validateMarkdownLinks(guidePath, guideContent);
 
     // Verify critical links were found and checked
     expect(checkedLinks).toContain("../../CONTEXT.md");
@@ -349,47 +388,7 @@ describe("Documentation Integrity Suite (src/docs.test.ts)", () => {
 
     it("all relative markdown links resolve to valid files on disk or existing application routes", () => {
       const content = fs.readFileSync(EDITORIAL_GUIDE_PATH, "utf-8");
-      const guideDir = path.dirname(EDITORIAL_GUIDE_PATH);
-
-      const markdownLinkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
-      const matches = [...content.matchAll(markdownLinkRegex)];
-      expect(matches.length).toBeGreaterThan(0);
-
-      for (const match of matches) {
-        const linkTarget = match[2].trim();
-
-        if (
-          linkTarget.startsWith("http://") ||
-          linkTarget.startsWith("https://") ||
-          linkTarget.startsWith("#")
-        ) {
-          continue;
-        }
-
-        if (linkTarget.startsWith("/")) {
-          // Route link: verify corresponding page exists
-          let relativePagePath: string;
-          if (linkTarget === "/") {
-            relativePagePath = "src/app/page.tsx";
-          } else {
-            relativePagePath = path.join("src/app", linkTarget, "page.tsx");
-          }
-          const absolutePagePath = path.resolve(REPO_ROOT, relativePagePath);
-          expect(
-            fs.existsSync(absolutePagePath),
-            `Route link "${linkTarget}" in 01-editorial-hero.md does not have a page at "${absolutePagePath}"`
-          ).toBe(true);
-          continue;
-        }
-
-        // Relative file link
-        const cleanPath = linkTarget.split("#")[0];
-        const absoluteTarget = path.resolve(guideDir, cleanPath);
-        expect(
-          fs.existsSync(absoluteTarget),
-          `Broken relative markdown link "${linkTarget}" in 01-editorial-hero.md does not exist at "${absoluteTarget}"`
-        ).toBe(true);
-      }
+      validateMarkdownLinks(EDITORIAL_GUIDE_PATH, content);
     });
 
     it("all asset references in code and text resolve to valid files in public/", () => {
@@ -411,30 +410,11 @@ describe("Documentation Integrity Suite (src/docs.test.ts)", () => {
 
     it("strictly adheres to canonical domain terminology from CONTEXT.md", () => {
       const content = fs.readFileSync(EDITORIAL_GUIDE_PATH, "utf-8");
-
-      expect(content).toContain("Base Plate");
-      expect(content).toContain("Shadow Caster");
-      expect(content).toContain("Penumbra");
-      expect(content).toContain("Contact Hardening");
-
-      const lowercase = content.toLowerCase();
-      expect(lowercase).not.toContain("occluder");
-      expect(lowercase).not.toContain("mask image");
-      expect(lowercase).not.toContain("canvas floor");
-      expect(lowercase).not.toContain("event animation");
+      assertCanonicalVocabulary(content);
     });
   });
 
   describe("Technical Scenario Guides (Ticket #33)", () => {
-    const COMPANION_GUIDES = new Set([
-      "01-editorial-hero.md",
-      "02-scroll-parallax.md",
-      "03-procedural-shadows.md",
-      "04-performance-and-degradation.md",
-      "05-custom-physics-and-lighting.md",
-      "api-reference.md",
-    ]);
-
     function assertGuideIntegrity(
       relativePath: string,
       expectedTitle: string,
@@ -458,68 +438,10 @@ describe("Documentation Integrity Suite (src/docs.test.ts)", () => {
       }
 
       // Canonical domain terminology checks from CONTEXT.md
-      expect(content).toContain("Base Plate");
-      expect(content).toContain("Shadow Caster");
-      expect(content).toContain("Penumbra");
-      expect(content).toContain("Contact Hardening");
-
-      // Forbidden terms must not appear as architectural concepts
-      const lowercase = content.toLowerCase();
-      expect(lowercase).not.toContain("occluder");
-      expect(lowercase).not.toContain("mask image");
-      expect(lowercase).not.toContain("canvas floor");
-      expect(lowercase).not.toContain("event animation");
+      assertCanonicalVocabulary(content);
 
       // Verify markdown links
-      const guideDir = path.dirname(guidePath);
-      const markdownLinkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
-      const matches = [...content.matchAll(markdownLinkRegex)];
-      expect(matches.length, `${relativePath} should contain markdown links`).toBeGreaterThan(0);
-
-      for (const match of matches) {
-        const linkTarget = match[2].trim();
-
-        if (
-          linkTarget.startsWith("http://") ||
-          linkTarget.startsWith("https://") ||
-          linkTarget.startsWith("#")
-        ) {
-          continue;
-        }
-
-        if (linkTarget.startsWith("/")) {
-          // Route link: verify corresponding page exists
-          let relativePagePath: string;
-          if (linkTarget === "/") {
-            relativePagePath = "src/app/page.tsx";
-          } else {
-            relativePagePath = path.join("src/app", linkTarget, "page.tsx");
-          }
-          const absolutePagePath = path.resolve(REPO_ROOT, relativePagePath);
-          expect(
-            fs.existsSync(absolutePagePath),
-            `Route link "${linkTarget}" in ${relativePath} does not have a page at "${absolutePagePath}"`
-          ).toBe(true);
-          continue;
-        }
-
-        // Companion guide link within docs/guides/
-        if (COMPANION_GUIDES.has(linkTarget)) {
-          const companionPath = path.resolve(guideDir, linkTarget);
-          if (fs.existsSync(companionPath)) {
-            expect(fs.statSync(companionPath).isFile()).toBe(true);
-          }
-          continue;
-        }
-
-        // Relative file link
-        const cleanPath = linkTarget.split("#")[0];
-        const absoluteTarget = path.resolve(guideDir, cleanPath);
-        expect(
-          fs.existsSync(absoluteTarget),
-          `Broken relative markdown link "${linkTarget}" in ${relativePath} does not exist at "${absoluteTarget}"`
-        ).toBe(true);
-      }
+      validateMarkdownLinks(guidePath, content);
 
       // Verify image asset references
       const assetRegex = /\/images\/[a-zA-Z0-9_\-.]+\.(?:webp|png|svg|jpg|jpeg)/g;
@@ -558,11 +480,10 @@ describe("Documentation Integrity Suite (src/docs.test.ts)", () => {
         "docs/guides/04-performance-and-degradation.md",
         "# Scenario Guide: Performance Tiering & Zero-LCP Handover",
         [
-          "The 4-Tier Progressive Degradation Ladder",
+          "The 3-Tier Progressive Degradation Ladder",
           "Tier 1: Full-Dynamic",
           "Tier 2: Low-Dynamic",
-          "Tier 3: CSS Fallback",
-          "Tier 4: Static Poster",
+          "Tier 3: Static Poster",
           "The Zero-LCP Handover Lifecycle",
           "requestIdleCallback",
           "300ms Cross-Fade Handover",
@@ -607,47 +528,7 @@ describe("Comprehensive API Reference Integrity & Contract Parity (docs/guides/a
 
   it("markdown links in api-reference.md resolve to valid files on disk (zero broken links)", () => {
     const apiRefContent = fs.readFileSync(API_REF_PATH, "utf-8");
-
-    const markdownLinkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
-    const matches = [...apiRefContent.matchAll(markdownLinkRegex)];
-
-    expect(matches.length).toBeGreaterThan(0);
-
-    const checkedLinks: string[] = [];
-    const guideDir = path.dirname(API_REF_PATH);
-
-    for (const match of matches) {
-      const linkTarget = match[2].trim();
-
-      // Skip external web links, routes, or fragment anchors
-      if (
-        linkTarget.startsWith("http://") ||
-        linkTarget.startsWith("https://") ||
-        linkTarget.startsWith("#")
-      ) {
-        continue;
-      }
-
-      // Route links (starting with /)
-      if (linkTarget.startsWith("/")) {
-        continue;
-      }
-
-      // Skip sibling guide links that may be authored concurrently in tickets #31-#33 if they do not exist
-      if (linkTarget.endsWith(".md") && !linkTarget.includes("/") && !fs.existsSync(path.resolve(guideDir, linkTarget))) {
-        continue;
-      }
-
-      const cleanPath = linkTarget.split("#")[0];
-      const absoluteTarget = path.resolve(guideDir, cleanPath);
-
-      expect(
-        fs.existsSync(absoluteTarget),
-        `Broken link found in docs/guides/api-reference.md: target "${linkTarget}" does not exist at "${absoluteTarget}"`
-      ).toBe(true);
-
-      checkedLinks.push(linkTarget);
-    }
+    const checkedLinks = validateMarkdownLinks(API_REF_PATH, apiRefContent);
 
     // Verify key cross-reference files were found and verified
     expect(checkedLinks).toContain("../../README.md");

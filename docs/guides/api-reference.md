@@ -57,13 +57,13 @@ The `<ShadowBackground />` component extends `React.HTMLAttributes<HTMLDivElemen
 | :--- | :--- | :--- | :--- | :--- |
 | `basePlate` | `string \| undefined` | `undefined` | **Yes** (Runtime) | URL/path to static Base Plate image or CSS background substrate. Rendered as a stationary, rigid DOM substrate underneath the shadow layer per [ADR-0002](../adr/0002-decoupled-transparent-shadow-layer.md). Default: `undefined`. |
 | `poster` | `string \| undefined` | `undefined` | No | Static composite poster image URL loaded with Next.js SSR priority for 0.000 CLS zero-LCP floor. Automatically cross-fades out over 300ms once dynamic shadow synthesis hydrates. Default: `undefined`. |
-| `caster` | `ShadowCasterConfig` | *None* | **Yes** | Pluggable **Shadow Caster** configuration. Discriminated union `{ type: "image"; src: string }` or `{ type: "procedural"; generator: "komorebi" \| "branch" }` (as well as `{ type: "komorebi"; ... }` and `{ type: "branch"; ... }`). Required. |
+| `caster` | `ShadowCasterConfig` | *None* | **Yes** | Pluggable **Shadow Caster** configuration. Discriminated union `{ type: "image"; src: string } | { type: "komorebi"; ... } | { type: "branch"; ... }`. Required. |
 | `tier` | `DegradationTier` | `"auto"` | No | Progressive enhancement degradation tier override: `"auto" \| "force-static" \| "force-dynamic"` (or canonical tiers `"static-poster" \| "low-dynamic" \| "full-dynamic"`). Default: `"auto"`. |
 | `motion` | `MotionConfig \| MotionPreset` | `"smooth"` | No | Spring physics, parallax, and ambient motion configuration: `{ preset?: MotionPreset; scrollInfluence?: number; ambient?: boolean; maxDisplacementPx?: number; spring?: Partial<SpringConfig> }`. Accepts a `MotionPreset` union string or a configuration object. Default: `"smooth"`. |
-| `penumbra` | `number` | `16` (or `24`) | No | Shadow blur radius in pixels (8px to 48px). Default: `16` (component runtime fallback: `24`). Controls softness and optical diffusion. |
+| `penumbra` | `number` | `24` | No | Shadow blur radius in pixels (8px to 48px). Default: `24`. Controls softness and optical diffusion. |
 | `offset` | `{ x: number; y: number }` | `{ x: 0, y: 0 }` | No | External displacement offset vector in pixels for scroll parallax or manual repositioning. Default: `{ x: 0, y: 0 }`. |
 | `shadowColor` | `string` | `"#000000"` | No | Hex/RGB shadow tint color. Default: `"#000000"`. |
-| `shadowOpacity` | `number` | `0.75` (or `0.65`) | No | Shadow opacity in range [0..1]. Default: `0.75` (component runtime fallback: `0.65`). |
+| `shadowOpacity` | `number` | `0.65` | No | Shadow opacity in range [0..1]. Default: `0.65`. |
 | `virtualLight` | `VirtualLightOptions` | `{ elevation: 1.0, angle: 45, distance: 1.0 }` | No | Coordinate options: `{ elevation?: number; angle?: number; distance?: number }`. Projected into dynamic directional light vector and penumbra dilation. |
 | `basePlateMotion` | `boolean` | `false` | No | Coupled motion toggle. When false (default), Base Plate is stationary ([ADR-0002](../adr/0002-decoupled-transparent-shadow-layer.md)). When true, Base Plate shifts with parallax. Default: `false`. |
 | `contactHardening` | `boolean` | `true` | No | Optical contact hardening toggle. When true, produces distance-proportional sharpness near contact surfaces and progressive softening at distance. Default: `true`. |
@@ -84,10 +84,9 @@ Shadow casters define the light-blocking silhouette or procedural mathematical g
 
 ```typescript
 export type ShadowCasterConfig =
-  | { type: "image"; src: string; opacity?: number }
-  | { type: "procedural"; generator: "komorebi" | "branch" }
-  | { type: "komorebi"; density?: number; contrast?: number; scale?: number; speed?: number }
-  | { type: "branch"; depth?: number; leafDensity?: number; swaySpeed?: number };
+  | { type: "image"; src: string }
+  | { type: "komorebi"; windSpeed?: number; canopyDensity?: number; scale?: number }
+  | { type: "branch"; depth?: number; branchAngle?: number; leafDensity?: number; seed?: number };
 ```
 
 ### 1. Raster Silhouette Caster (`type: "image"`)

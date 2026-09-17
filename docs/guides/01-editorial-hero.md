@@ -10,7 +10,7 @@
 
 ## 1. Overview & Architectural Rationale
 
-Modern luxury, architectural, and editorial websites rely heavily on tactile materiality—such as raw timber grain, weathered concrete, textured linen, and distressed plaster—to evoke depth and physical presence. Traditional digital design often isolates these rich photographic backdrops from typography using flat dropshadows or dark overlay scrams. This destroys the illusion of light entering a real three-dimensional space.
+Modern luxury, architectural, and editorial websites rely heavily on tactile materiality—such as raw timber grain, weathered concrete, textured linen, and distressed plaster—to evoke depth and physical presence. Traditional digital design often isolates these rich photographic substrates from typography using flat dropshadows or dark overlay scrams. This destroys the illusion of light entering a real three-dimensional space.
 
 The **`<ShadowBackground />`** component bridges this gap by casting dynamic, physically grounded shadows directly across photographic substrates. Instead of treating lighting as a decorative afterthought, the component simulates real-world optical phenomena: variable **Penumbra** diffusion, **Contact Hardening**, spring-damped pointer parallax, and ambient wind sway.
 

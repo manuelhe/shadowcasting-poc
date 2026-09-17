@@ -135,7 +135,7 @@ Production-ready assets are cataloged in [`public/images/`](public/images/):
 | [`public/images/decayedpaint-background.webp`](public/images/decayedpaint-background.webp) | WebP Image | Base Plate | High-resolution distressed urban concrete and weathered peeling paint substrate. |
 | [`public/images/shadow-1.webp`](public/images/shadow-1.webp) | WebP Image | Shadow Caster | High-resolution isolated botanical foliage and leaf silhouette alpha mask. |
 | [`public/images/shadow-2.webp`](public/images/shadow-2.webp) | WebP Image | Shadow Caster | High-resolution organic tree branch and leaf cluster silhouette alpha mask. |
-| [`public/images/base-minimal-studio.svg`](public/images/base-minimal-studio.svg) | SVG Vector | Base Plate | Clean neutral studio backdrop with soft geometric gradient lighting. |
+| [`public/images/base-minimal-studio.svg`](public/images/base-minimal-studio.svg) | SVG Vector | Base Plate | Clean neutral studio surface with soft geometric gradient lighting. |
 | [`public/images/base-architectural.svg`](public/images/base-architectural.svg) | SVG Vector | Base Plate | Architectural interior elevation with clean perspective floor and wall planes. |
 | [`public/images/base-dappled-forest.svg`](public/images/base-dappled-forest.svg) | SVG Vector | Base Plate | Ambient forest floor vector substrate. |
 | [`public/images/caster-branch.svg`](public/images/caster-branch.svg) | SVG Vector | Shadow Caster | Scalable parametric branch and leaf silhouette vector. |

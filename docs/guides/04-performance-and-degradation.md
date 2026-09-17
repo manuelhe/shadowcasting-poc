@@ -33,41 +33,40 @@ Initializing high-end graphics libraries during page bootstrap frequently trigge
 * Compiling WebGL shaders synchronously during hydration delays page interactability.
 * Downloading redundant 4–16 MB textures for the background substrate strains memory bandwidth on constrained mobile devices.
 
-To overcome these constraints, the **`<ShadowBackground />`** component introduces the **Zero-LCP Handover Lifecycle** and a **4-Tier Degradation Ladder**, delivering photorealistic interactive shadows without sacrificing Core Web Vitals.
+To overcome these constraints, the **`<ShadowBackground />`** component introduces the **Zero-LCP Handover Lifecycle** and a **3-Tier Progressive Degradation Ladder**, delivering photorealistic interactive shadows without sacrificing Core Web Vitals.
 
 ---
 
-## 2. The 4-Tier Progressive Degradation Ladder
+## 2. The 3-Tier Progressive Degradation Ladder
 
-The rendering pipeline implements a 4-tier degradation strategy that balances visual fidelity with hardware capabilities, battery reserves, network bandwidth, and user accessibility preferences.
+The rendering pipeline implements a 3-tier degradation strategy defined by [ADR-0001](../adr/0001-shadowcasting-component-architecture.md) that balances visual fidelity with hardware capabilities, battery reserves, network bandwidth, and user accessibility preferences.
 
 ```mermaid
 flowchart TD
     Detect["Device & Context Detection (detectDeviceCapabilities)"]
     Detect --> CheckA11y{"prefers-reduced-motion<br/>OR Save-Data?"}
     
-    CheckA11y -- Yes --> Tier4["Tier 4: Static Poster Fallback<br/>(0% CPU, 0 KB Runtime Memory, 0.000 CLS)"]
+    CheckA11y -- Yes --> Tier3["Tier 3: SSR Static Poster Image (static-poster)<br/>(0% CPU, 0 KB Runtime Memory, 0.000 CLS)"]
     CheckA11y -- No --> CheckWebGL{"WebGL 2 Supported<br/>AND RAM > 4 GB?"}
     
-    CheckWebGL -- Yes --> Tier1["Tier 1: WebGL Dual-Filtering<br/>(Poisson-Disk Contact Hardening, <0.8ms GPU)"]
+    CheckWebGL -- Yes --> Tier1["Tier 1: WebGL 2 Dual-Filtering (full-dynamic)<br/>(Poisson-Disk Contact Hardening, <0.8ms GPU)"]
     CheckWebGL -- No --> CheckCanvas{"Canvas 2D Supported<br/>AND RAM > 2 GB?"}
     
-    CheckCanvas -- Yes --> Tier2["Tier 2: Canvas 2D Fallback<br/>(Offscreen Multi-Pass Blur, 60 FPS)"]
-    CheckCanvas -- No --> Tier3["Tier 3: CSS Filter Fallback<br/>(Hardware-Composited Backdrop Blur)"]
+    CheckCanvas -- Yes --> Tier2["Tier 2: Canvas 2D Offscreen Gaussian Blur (low-dynamic)<br/>(Offscreen Fallback, <2.5ms CPU)"]
+    CheckCanvas -- No --> Tier3
 ```
 
 ### Detailed Degradation Tier Matrix
 
 | Degradation Tier | Engine Subsystem | GPU Frame Time | Main-Thread CPU | Contact Hardening | CLS Score | Ideal Target Environments |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Tier 1: Full-Dynamic** | WebGL 2 Poisson-Disk Shader | **< 0.8ms** | **< 0.05ms** | **Yes** (12-tap Poisson) | **0.000** | Modern Desktop (macOS, Windows), iPad Pro, High-End Mobile (Snapdragon 8 Gen 2+, Apple A15+) |
-| **Tier 2: Low-Dynamic** | Canvas 2D Offscreen Blur | 1.5ms – 3.2ms | 0.8ms – 2.1ms | Approximated | **0.000** | Mid-Tier Mobile (4 GB RAM, Helio/Exynos), Battery Saver mode, Clamped WebKit environments |
-| **Tier 3: CSS Fallback** | Hardware Composited CSS | Variable (Compositor) | < 0.2ms | No (Uniform blur) | **0.000** | Legacy browsers lacking WebGL/Canvas2D acceleration, embedded web views |
-| **Tier 4: Static Poster** | Pre-rendered SSR Poster | **0ms** | **0ms** | Pre-baked | **0.000** | `prefers-reduced-motion`, `Save-Data`, Low Memory (≤ 2 GB RAM), SSR initial paint |
+| **Tier 1: Full-Dynamic** (`full-dynamic`) | WebGL 2 Dual-Filtering (Poisson Shader) | **< 0.8ms** | **< 0.05ms** | **Yes** (12-tap Poisson) | **0.000** | Modern Desktop (macOS, Windows), iPad Pro, High-End Mobile (Snapdragon 8 Gen 2+, Apple A15+) |
+| **Tier 2: Low-Dynamic** (`low-dynamic`) | Canvas 2D Offscreen Gaussian Blur | 1.5ms – 3.2ms | **< 2.5ms** | Approximated | **0.000** | Mid-Tier Mobile (4 GB RAM, Helio/Exynos), Battery Saver mode, Clamped WebKit environments |
+| **Tier 3: Static Poster** (`static-poster`) | SSR Static Poster Image | **0ms** | **0ms** | Pre-baked | **0.000** | `prefers-reduced-motion`, `Save-Data`, Low Memory (≤ 2 GB RAM), SSR initial paint |
 
 ---
 
-### Tier 1: WebGL Dual-Filtering with Poisson-Disk Contact Hardening
+### Tier 1: Full-Dynamic (WebGL 2 Dual-Filtering)
 
 At the peak of the ladder, dynamic shadows are synthesized via a dedicated fragment shader (`WebGlShadowEngine.tsx`).
 * **12-Tap Golden-Spiral Poisson Sampling**: Distributes sampling offsets evenly across the penumbra radius without radial banding or grid artifacts:
@@ -78,25 +77,28 @@ At the peak of the ladder, dynamic shadows are synthesized via a dedicated fragm
   $$\text{penumbraFactor} = \text{mix}(1.0, \text{dist}, u_{\text{contactHardening}})$$
 * **Performance Budget**: Executes in **< 0.8ms** per frame on modern GPUs, sustaining steady 60–120 FPS during cursor parallax and scroll displacement.
 
-### Tier 2: Canvas 2D Multi-Pass Fallback
+### Tier 2: Low-Dynamic (Canvas 2D Offscreen Gaussian Blur)
 
 When WebGL is unavailable or when the host device reports moderate memory constraints (≤ 4 GB RAM):
-* Uses `Canvas2dShadowEngine.tsx` with offscreen canvas pre-rendering.
+* Uses `Canvas2dShadowEngine.tsx` with offscreen canvas pre-rendering and Gaussian blur filtering.
 * Utilizes cached `ImageBitmap` representations of the **Shadow Caster** to prevent garbage collection churn.
-* Throttles ambient motion updates to maintain 60 FPS without monopolizing the main thread.
+* Limits CPU processing budget to **< 2.5ms** while maintaining responsive frame pacing.
 
-### Tier 3: CSS Filter Fallback
-
-When hardware-accelerated canvas contexts fail or are disabled by administrative browser policies:
-* Uses `CssShadowEngine.tsx` with CSS `filter: blur(...)` and 3D hardware-accelerated transforms (`transform: translate3d(...)`).
-* Isolates rendering onto a dedicated compositor layer (`transform-gpu`) to avoid reflow.
-
-### Tier 4: Static Poster Fallback (Zero-LCP Floor)
+### Tier 3: Static Poster (SSR Static Poster Image Fallback)
 
 The essential architectural floor of the component:
 * Renders a pre-baked photographic composite combining the **Base Plate** and the cast shadow directly in SSR HTML.
 * Consumes strictly **0% CPU** and **0 KB VRAM**.
-* Guarantees absolute accessibility compliance and acts as the unyielding foundation for the Zero-LCP handover.
+* Guarantees absolute accessibility compliance, **0.000 CLS**, and acts as the unyielding foundation for the Zero-LCP handover.
+
+### Discarded Alternative: CSS/SVG Filter Experimentation (ADR-0001)
+
+During initial architectural evaluation ([ADR-0001](../adr/0001-shadowcasting-component-architecture.md) Option 1), CSS filters (`filter: blur()`, CSS Filter Blur) and SVG `<feGaussianBlur>` were benchmarked as a potential intermediate fallback tier. While syntactically simple, empirical testing revealed critical GPU architectural hazards:
+* **TBDR GPU Bandwidth Stalls**: Animating blur radii or dynamic transforms invalidates compositor render surfaces (`cc::RenderSurfaceImpl` in Chromium, `CALayer` in WebKit). Intermediate high-DPI textures require 49.4 MB (1080p @ 2x DPR) to 197.7 MB (4K), causing Tile-Based Deferred Rendering (TBDR) memory churn.
+* **iOS Safari Jetsam Process Kills**: On iOS WebKit instances with constrained 224 MB–384 MB memory ceilings, TBDR surface churn routinely triggered catastrophic uncatchable tab crashes (Jetsam terminations).
+* **Zero Contact Hardening**: CSS filters apply a uniform isotropic Gaussian blur across the entire silhouette, making physically grounded contact hardening mathematically impossible.
+
+Consequently, CSS/SVG filters were discarded from production. The runtime component strictly standardizes on the 3 canonical production tiers (`full-dynamic`, `low-dynamic`, and `static-poster`).
 
 ---
 
@@ -236,18 +238,18 @@ export function detectDeviceCapabilities(): DeviceCapabilities {
 
 #### 1. Reduced Motion Accessibility (`prefers-reduced-motion: reduce`)
 * **Standard**: WCAG 2.2 Success Criterion 2.3.3 (Animation from Interactions).
-* **Action**: Immediately forces **Tier 4: Static Poster Fallback**.
+* **Action**: Immediately forces **Tier 3: Static Poster Fallback** (`static-poster`).
 * **Rationale**: Eliminates vestibular triggers, dizziness, and nausea for users sensitive to parallax motion.
 
 #### 2. Network Data Saver (`navigator.connection.saveData`)
 * **Standard**: Client Hints / Network Information API.
-* **Action**: Forces **Tier 4: Static Poster Fallback**.
+* **Action**: Forces **Tier 3: Static Poster Fallback** (`static-poster`).
 * **Rationale**: Prevents downloading procedural or dynamic assets when users are on metered cellular data plans.
 
 #### 3. RAM Thresholds (`navigator.deviceMemory`)
-* **RAM ≤ 2 GB**: Degrades to **Tier 4: Static Poster Fallback**. Protects low-end Android Go and budget smartphones from Out-Of-Memory process termination.
-* **2 GB < RAM ≤ 4 GB**: Degrades to **Tier 2: Low-Dynamic Canvas 2D**. Eliminates heavy WebGL buffer allocation while preserving motion.
-* **RAM > 4 GB**: Promotes to **Tier 1: Full-Dynamic WebGL**.
+* **RAM ≤ 2 GB**: Degrades to **Tier 3: Static Poster Fallback** (`static-poster`). Protects low-end Android Go and budget smartphones from Out-Of-Memory process termination.
+* **2 GB < RAM ≤ 4 GB**: Degrades to **Tier 2: Low-Dynamic Canvas 2D** (`low-dynamic`). Eliminates heavy WebGL buffer allocation while preserving motion.
+* **RAM > 4 GB**: Promotes to **Tier 1: Full-Dynamic WebGL** (`full-dynamic`).
 
 #### 4. WebKit CPU Core Clamping Awareness
 * Apple Safari deliberately clamps `navigator.hardwareConcurrency` to `2` on iOS and macOS to mitigate browser fingerprinting.
@@ -255,7 +257,7 @@ export function detectDeviceCapabilities(): DeviceCapabilities {
 * Our heuristic inspects `isAppleDevice`: if an Apple device reports 2 cores, it is recognized as `isCoreClamped` and permitted into **Tier 1**, whereas a non-Apple device reporting ≤ 2 cores is safely assigned to **Tier 2**.
 
 #### 5. WebGL 2 Context & Hardware Renderer Inspection
-* Tests context creation with `{ failIfMajorPerformanceCaveat: true }`. If the browser would rely on software rasterization (such as SwiftShader or LLVMpipe), the engine aborts WebGL to avoid catastrophic CPU load, dropping gracefully to Tier 2 or 3.
+* Tests context creation with `{ failIfMajorPerformanceCaveat: true }`. If the browser would rely on software rasterization (such as SwiftShader or LLVMpipe), the engine aborts WebGL to avoid catastrophic CPU load, dropping gracefully to Tier 2 (`low-dynamic`) or Tier 3 (`static-poster`).
 
 ---
 
