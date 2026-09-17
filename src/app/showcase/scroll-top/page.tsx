@@ -6,15 +6,49 @@ import { ShadowBackground } from "@/components/ShadowBackground";
 import { ArrowDown, Compass, Sparkles, MoveRight, SunMedium } from "lucide-react";
 
 export default function ScrollTopShowcasePage() {
+  const trackRef = React.useRef<HTMLDivElement>(null);
   const heroRef = React.useRef<HTMLElement>(null);
+  const [scrollProgress, setScrollProgress] = React.useState<number>(0);
   const [heroOffset, setHeroOffset] = React.useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [dynamicPenumbra, setDynamicPenumbra] = React.useState<number>(30);
+  const [lightDirection, setLightDirection] = React.useState<[number, number, number]>([-30, 15, 1]);
 
   React.useEffect(() => {
     const handleScroll = () => {
-      const scrollY = window.scrollY || 0;
-      const heroHeight = heroRef.current?.offsetHeight || 800;
-      const heroProgress = Math.min(1, Math.max(0, scrollY / (heroHeight || 800)));
-      setHeroOffset({ x: 0, y: Math.round(heroProgress * 120) });
+      let progress = 0;
+      if (trackRef.current) {
+        const rect = trackRef.current.getBoundingClientRect();
+        const totalScrollable = rect.height - (window.innerHeight || 800);
+        if (totalScrollable > 0) {
+          progress = Math.min(1, Math.max(0, -rect.top / totalScrollable));
+        } else {
+          // Fallback for non-rendered test environments where getBoundingClientRect has 0 height
+          const scrollY = window.scrollY || window.pageYOffset || 0;
+          const heroHeight = heroRef.current?.offsetHeight || 800;
+          progress = Math.min(1, Math.max(0, scrollY / heroHeight));
+        }
+      } else {
+        const scrollY = window.scrollY || window.pageYOffset || 0;
+        const heroHeight = heroRef.current?.offsetHeight || 800;
+        progress = Math.min(1, Math.max(0, scrollY / heroHeight));
+      }
+
+      setScrollProgress(progress);
+
+      // Arc trajectory: shadow sweeps horizontally and descends vertically as light traverses
+      const x = Math.round(Math.sin(progress * Math.PI) * 140 - 50);
+      const y = Math.round(progress * 180);
+      setHeroOffset({ x, y });
+
+      // Dynamic light elevation and angle (shifting from grazing sunrise to steep zenith to warm evening)
+      setLightDirection([
+        Math.round(-30 + progress * 60),
+        Math.round(15 + progress * 40),
+        1,
+      ]);
+
+      // Dynamic penumbra softening (sharp morning contact 24px -> wide atmospheric evening blur 40px)
+      setDynamicPenumbra(Math.round(24 + progress * 16));
     };
 
     window.addEventListener("scroll", handleScroll, { passive: true });
@@ -27,67 +61,136 @@ export default function ScrollTopShowcasePage() {
     };
   }, []);
 
+  // Compute active solar milestone for visual feedback
+  const activeMilestone =
+    scrollProgress < 0.33 ? 0 : scrollProgress < 0.67 ? 1 : 2;
+
   return (
     <div className="w-full min-h-screen bg-zinc-950 text-zinc-100 flex flex-col selection:bg-amber-500/30">
-      {/* 1. TOP HERO SECTION */}
-      <section
-        ref={heroRef}
-        data-testid="scroll-top-hero-section"
-        className="relative h-screen min-h-[640px] flex items-center justify-center overflow-hidden"
-      >
-        {/* Dynamic Interactive Shadow Canvas Background */}
-        <ShadowBackground
-          basePlate="/images/wood-background.webp"
-          caster={{ type: "image", src: "/images/shadow-2.webp" }}
-          className="absolute inset-0"
-          tier="auto"
-          offset={heroOffset}
-          motion={{
-            preset: "smooth",
-            scrollInfluence: 120,
-            ambient: true,
-            maxDisplacementPx: 50,
-          }}
-          shadowColor="#050505"
-          shadowOpacity={0.8}
-          penumbra={30}
+      {/* 1. SCROLL-DRIVEN STICKY HERO STAGE */}
+      <div ref={trackRef} className="relative h-[250vh]">
+        <section
+          ref={heroRef}
+          data-testid="scroll-top-hero-section"
+          className="relative sticky top-0 h-screen min-h-[640px] flex items-center justify-center overflow-hidden"
         >
-          {/* Subtle Vignette & Gradient Overlays for High Contrast Readability */}
-          <div
-            className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/20 to-zinc-950/60 pointer-events-none"
-            aria-hidden="true"
-          />
+          {/* Dynamic Interactive Shadow Canvas Background */}
+          <ShadowBackground
+            basePlate="/images/wood-background.webp"
+            caster={{ type: "image", src: "/images/shadow-2.webp" }}
+            className="absolute inset-0"
+            tier="auto"
+            offset={heroOffset}
+            motion={{
+              preset: "smooth",
+              scrollInfluence: 120,
+              ambient: true,
+              maxDisplacementPx: 50,
+            }}
+            shadowColor="#050505"
+            shadowOpacity={0.8}
+            penumbra={dynamicPenumbra}
+            lightDirection={lightDirection}
+          >
+            {/* Subtle Vignette & Gradient Overlays for High Contrast Readability */}
+            <div
+              className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/25 to-zinc-950/60 pointer-events-none"
+              aria-hidden="true"
+            />
 
-          {/* White Editorial Header */}
-          <div className="relative z-10 text-center px-4 max-w-4xl flex flex-col items-center gap-6 pt-16 mx-auto h-full justify-center">
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-mono font-medium tracking-widest uppercase bg-zinc-950/60 border border-zinc-700/60 text-zinc-300 backdrop-blur-md shadow-lg">
-              <Compass className="w-3.5 h-3.5 text-amber-400 animate-spin-slow" />
-              <span>Design Study 03 • Continuous Scroll Parallax</span>
+            {/* White Editorial Header & Real-time Scroll Parallax Stage */}
+            <div className="relative z-10 text-center px-4 max-w-4xl flex flex-col items-center gap-5 pt-16 mx-auto h-full justify-center">
+              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-mono font-medium tracking-widest uppercase bg-zinc-950/60 border border-zinc-700/60 text-zinc-300 backdrop-blur-md shadow-lg">
+                <Compass className="w-3.5 h-3.5 text-amber-400 animate-spin-slow" />
+                <span>Design Study 03 • Continuous Scroll Parallax</span>
+              </div>
+
+              <h1 className="text-5xl sm:text-7xl lg:text-8xl font-serif tracking-tight text-white font-light drop-shadow-2xl">
+                LIGHT IN TRANSIT
+              </h1>
+
+              <p className="max-w-2xl text-base sm:text-lg lg:text-xl text-zinc-200 font-light leading-relaxed drop-shadow-md">
+                As the viewport descends, subtle virtual light vectors pivot across tactile architectural grain.
+                Natural occlusion emerges through progressive scroll elevation.
+              </p>
+
+              {/* Real-time Scroll Parallax Telemetry Badge (Display Only - Zero Inputs) */}
+              <div className="flex flex-wrap items-center justify-center gap-3 px-4 py-2 rounded-full bg-zinc-950/75 border border-zinc-700/70 text-xs font-mono text-zinc-300 backdrop-blur-md shadow-xl transition-all">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                  <span className="text-zinc-400">Scroll:</span>
+                  <span className="text-amber-300 font-semibold">{Math.round(scrollProgress * 100)}%</span>
+                </div>
+                <span className="text-zinc-600">|</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-zinc-400">Shadow Offset:</span>
+                  <span className="text-zinc-100 font-semibold">
+                    [{heroOffset.x >= 0 ? `+${heroOffset.x}` : heroOffset.x}px, +{heroOffset.y}px]
+                  </span>
+                </div>
+                <span className="text-zinc-600">|</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-zinc-400">Penumbra:</span>
+                  <span className="text-sky-300 font-semibold">{dynamicPenumbra}px</span>
+                </div>
+              </div>
+
+              {/* Three-Phase Solar Milestones Indicator */}
+              <div className="flex items-center gap-2 sm:gap-3 text-[11px] font-mono tracking-wider uppercase mt-1">
+                <div
+                  className={`px-3 py-1 rounded-full border transition-all ${
+                    activeMilestone === 0
+                      ? "bg-amber-500/20 border-amber-500/60 text-amber-300 shadow-sm"
+                      : "bg-zinc-900/40 border-zinc-800 text-zinc-500"
+                  }`}
+                >
+                  01 • Dawn Horizon
+                </div>
+                <div className="w-2 h-[1px] bg-zinc-700" />
+                <div
+                  className={`px-3 py-1 rounded-full border transition-all ${
+                    activeMilestone === 1
+                      ? "bg-amber-500/20 border-amber-500/60 text-amber-300 shadow-sm"
+                      : "bg-zinc-900/40 border-zinc-800 text-zinc-500"
+                  }`}
+                >
+                  02 • Solar Zenith
+                </div>
+                <div className="w-2 h-[1px] bg-zinc-700" />
+                <div
+                  className={`px-3 py-1 rounded-full border transition-all ${
+                    activeMilestone === 2
+                      ? "bg-amber-500/20 border-amber-500/60 text-amber-300 shadow-sm"
+                      : "bg-zinc-900/40 border-zinc-800 text-zinc-500"
+                  }`}
+                >
+                  03 • Twilight Dusk
+                </div>
+              </div>
+
+              {/* Scroll Prompt Call to Action */}
+              <div className="pt-2 flex flex-col items-center gap-2">
+                <div className="flex items-center gap-2 text-xs font-mono font-medium tracking-widest uppercase text-zinc-300">
+                  <span className="w-8 h-[1px] bg-zinc-500/60" />
+                  <span>SCROLL DOWN TO ANIMATE OCCLUSION</span>
+                  <span className="w-8 h-[1px] bg-zinc-500/60" />
+                </div>
+                <div className="p-2 rounded-full border border-zinc-700/80 bg-zinc-900/50 text-amber-400 animate-bounce backdrop-blur-sm">
+                  <ArrowDown className="w-4 h-4" />
+                </div>
+              </div>
             </div>
 
-            <h1 className="text-5xl sm:text-7xl lg:text-8xl font-serif tracking-tight text-white font-light drop-shadow-2xl">
-              LIGHT IN TRANSIT
-            </h1>
-
-            <p className="max-w-2xl text-base sm:text-lg lg:text-xl text-zinc-200 font-light leading-relaxed drop-shadow-md">
-              As the viewport descends, subtle virtual light vectors pivot across tactile architectural grain.
-              Natural occlusion emerges through progressive scroll elevation.
-            </p>
-
-            {/* Scroll Prompt Call to Action */}
-            <div className="pt-8 flex flex-col items-center gap-3">
-              <div className="flex items-center gap-2 text-xs font-mono font-medium tracking-widest uppercase text-zinc-300">
-                <span className="w-8 h-[1px] bg-zinc-500/60" />
-                <span>SCROLL DOWN TO ANIMATE OCCLUSION</span>
-                <span className="w-8 h-[1px] bg-zinc-500/60" />
-              </div>
-              <div className="p-2 rounded-full border border-zinc-700/80 bg-zinc-900/50 text-amber-400 animate-bounce backdrop-blur-sm">
-                <ArrowDown className="w-4 h-4" />
-              </div>
+            {/* Viewport Bottom Scroll Progress Track */}
+            <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-zinc-900/80 pointer-events-none">
+              <div
+                className="h-full bg-gradient-to-r from-amber-500 via-amber-400 to-sky-400 transition-all duration-75"
+                style={{ width: `${Math.round(scrollProgress * 100)}%` }}
+              />
             </div>
-          </div>
-        </ShadowBackground>
-      </section>
+          </ShadowBackground>
+        </section>
+      </div>
 
       {/* 2. GENEROUS LONG-FORM EDITORIAL ARTICLE CONTENT */}
       <article
