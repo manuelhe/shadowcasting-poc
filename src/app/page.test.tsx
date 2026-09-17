@@ -218,4 +218,16 @@ describe("Home Page - Hero Telemetry & Interactive Base Plate Motion Toggle (Iss
     expect(showcaseLink).toBeDefined();
     expect(showcaseLink?.getAttribute("href")).toBe("/showcase");
   });
+
+  it("renders the Executive Conclusions link in the header navigating to /conclusions", async () => {
+    await act(async () => {
+      root?.render(<Home />);
+    });
+
+    const links = Array.from(rootContainer.querySelectorAll("a"));
+    const conclusionsLink = links.find((link) => link.textContent?.includes("Conclusions"));
+    expect(conclusionsLink).toBeDefined();
+    expect(conclusionsLink?.getAttribute("href")).toBe("/conclusions");
+  });
 });
+

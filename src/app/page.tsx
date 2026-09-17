@@ -25,6 +25,7 @@ import {
   Sliders,
   Sparkles,
   Layers,
+  BookOpen,
   CheckCircle2,
   ArrowRight,
   Cpu,
@@ -157,7 +158,7 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             <Link
               href="/showcase"
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-zinc-950 shadow-md shadow-amber-500/20 transition active:scale-95"
@@ -166,11 +167,19 @@ export default function Home() {
               <span>Showcase Gallery ↗</span>
             </Link>
 
+            <Link
+              href="/conclusions"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-white shadow-md shadow-sky-500/20 transition active:scale-95"
+            >
+              <BookOpen className="w-3.5 h-3.5" />
+              <span>Executive Conclusions ↗</span>
+            </Link>
+
             <a
               href="https://github.com/manuelhe/shadowcasting-poc/blob/main/docs/adr/0002-decoupled-transparent-shadow-layer.md"
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-800 transition"
+              className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-800 transition"
             >
               <Layers className="w-3.5 h-3.5 text-sky-400" />
               <span>ADR-0001 &amp; ADR-0002</span>
@@ -181,7 +190,7 @@ export default function Home() {
               href="https://github.com/manuelhe/shadowcasting-poc/issues/13"
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-800 transition"
+              className="hidden lg:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-800 transition"
             >
               <GitBranch className="w-3.5 h-3.5 text-emerald-400" />
               <span>Ticket #13</span>
