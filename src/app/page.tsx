@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import Link from "next/link";
 import {
   ShadowBackground,
   type ShadowCasterConfig,
@@ -157,6 +158,14 @@ export default function Home() {
           </div>
 
           <div className="flex items-center gap-3">
+            <Link
+              href="/showcase"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-zinc-950 shadow-md shadow-amber-500/20 transition active:scale-95"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>Showcase Gallery ↗</span>
+            </Link>
+
             <a
               href="https://github.com/manuelhe/shadowcasting-poc/blob/main/docs/adr/0002-decoupled-transparent-shadow-layer.md"
               target="_blank"

@@ -66,6 +66,19 @@ describe("Home Page - Hero Telemetry & Interactive Base Plate Motion Toggle (Iss
     Object.defineProperty(global, "window", { value: window, configurable: true, writable: true });
     Object.defineProperty(global, "document", { value: window.document, configurable: true, writable: true });
     Object.defineProperty(global, "navigator", { value: window.navigator, configurable: true, writable: true });
+    Object.defineProperty(global, "self", { value: window, configurable: true, writable: true });
+
+    if (typeof global.IntersectionObserver === "undefined") {
+      Object.defineProperty(global, "IntersectionObserver", {
+        value: class {
+          observe() {}
+          unobserve() {}
+          disconnect() {}
+        },
+        configurable: true,
+        writable: true,
+      });
+    }
     Object.defineProperty(global, "requestAnimationFrame", {
       value: (cb: FrameRequestCallback) => setTimeout(cb, 16) as unknown as number,
       configurable: true,
@@ -193,5 +206,16 @@ describe("Home Page - Hero Telemetry & Interactive Base Plate Motion Toggle (Iss
     });
     expect(telemetryPill?.textContent?.replace(/\s+/g, " ").trim()).toContain("Base Plate: Static (Decoupled)");
     expect(shadowContainer?.getAttribute("data-base-plate-motion")).toBe("false");
+  });
+
+  it("renders the Showcase Gallery link in the header navigating to /showcase", async () => {
+    await act(async () => {
+      root?.render(<Home />);
+    });
+
+    const links = Array.from(rootContainer.querySelectorAll("a"));
+    const showcaseLink = links.find((link) => link.textContent?.includes("Showcase Gallery"));
+    expect(showcaseLink).toBeDefined();
+    expect(showcaseLink?.getAttribute("href")).toBe("/showcase");
   });
 });
