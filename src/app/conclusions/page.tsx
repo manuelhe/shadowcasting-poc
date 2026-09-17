@@ -766,7 +766,7 @@ export default function ConclusionsPage() {
                 <li className="flex items-start gap-2">
                   <span className="text-sky-400 font-bold">•</span>
                   <span>
-                    <strong>Keep Base Plate Static by Default:</strong> Avoid camera tilts across the
+                    <strong>Keep Base Plate Static by Default:</strong> Avoid coupled Base Plate Motion across the
                     photographic substrate to prevent artificial arcade skew. Physical walls are stationary.
                   </span>
                 </li>

@@ -306,5 +306,8 @@ describe("Executive Conclusions Page Route (/conclusions - Ticket #39)", () => {
     expect(text).not.toContain("blur processor");
     expect(text).not.toContain("feathering");
     expect(text).not.toContain("gradient blur");
+    expect(text.toLowerCase()).not.toContain("camera tilt");
+    expect(text.toLowerCase()).not.toContain("whole-page parallax");
+    expect(text.toLowerCase()).not.toContain("mask image");
   });
 });
