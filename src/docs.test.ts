@@ -24,6 +24,7 @@ import { ShadowBackground, ShadowBackgroundProps } from "./components/ShadowBack
 
 const REPO_ROOT = path.resolve(__dirname, "..");
 const README_PATH = path.join(REPO_ROOT, "README.md");
+const EDITORIAL_GUIDE_PATH = path.join(REPO_ROOT, "docs/guides/01-editorial-hero.md");
 
 describe("Documentation Integrity Suite (src/docs.test.ts)", () => {
   it("root README.md exists and is non-empty (>500 bytes)", () => {
@@ -247,5 +248,102 @@ describe("Documentation Integrity Suite (src/docs.test.ts)", () => {
     expect(readmeContent).toContain("pnpm build");
     expect(readmeContent).toContain("pnpm test");
     expect(readmeContent).toContain("pnpm lint");
+  });
+
+  describe("Scenario Guide: Editorial Photographic Hero (docs/guides/01-editorial-hero.md)", () => {
+    it("guide file exists and is non-empty (>500 bytes)", () => {
+      expect(fs.existsSync(EDITORIAL_GUIDE_PATH)).toBe(true);
+      const stats = fs.statSync(EDITORIAL_GUIDE_PATH);
+      expect(stats.size).toBeGreaterThan(500);
+    });
+
+    it("contains required title, study sections, and architectural rationales", () => {
+      const content = fs.readFileSync(EDITORIAL_GUIDE_PATH, "utf-8");
+      expect(content).toContain("# Scenario Guide: Editorial Photographic Hero");
+      expect(content).toContain("Overview & Architectural Rationale");
+      expect(content).toContain("The Decoupled Static Base Plate (ADR-0002)");
+      expect(content).toContain("Study 1: Architectural Timber & Serif Display Typography");
+      expect(content).toContain("Study 2: Industrial Distressed Paint & Brutalist Typography");
+      expect(content).toContain("Zero-Control Presentation: The Case for Production Immersion");
+      expect(content).toContain("Troubleshooting & Best Practices");
+      expect(content).toContain("Layering Isolation (ADR-0001 Pillar 5)");
+    });
+
+    it("all relative markdown links resolve to valid files on disk or existing application routes", () => {
+      const content = fs.readFileSync(EDITORIAL_GUIDE_PATH, "utf-8");
+      const guideDir = path.dirname(EDITORIAL_GUIDE_PATH);
+
+      const markdownLinkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
+      const matches = [...content.matchAll(markdownLinkRegex)];
+      expect(matches.length).toBeGreaterThan(0);
+
+      for (const match of matches) {
+        const linkTarget = match[2].trim();
+
+        if (
+          linkTarget.startsWith("http://") ||
+          linkTarget.startsWith("https://") ||
+          linkTarget.startsWith("#")
+        ) {
+          continue;
+        }
+
+        if (linkTarget.startsWith("/")) {
+          // Route link: verify corresponding page exists
+          let relativePagePath: string;
+          if (linkTarget === "/") {
+            relativePagePath = "src/app/page.tsx";
+          } else {
+            relativePagePath = path.join("src/app", linkTarget, "page.tsx");
+          }
+          const absolutePagePath = path.resolve(REPO_ROOT, relativePagePath);
+          expect(
+            fs.existsSync(absolutePagePath),
+            `Route link "${linkTarget}" in 01-editorial-hero.md does not have a page at "${absolutePagePath}"`
+          ).toBe(true);
+          continue;
+        }
+
+        // Relative file link
+        const cleanPath = linkTarget.split("#")[0];
+        const absoluteTarget = path.resolve(guideDir, cleanPath);
+        expect(
+          fs.existsSync(absoluteTarget),
+          `Broken relative markdown link "${linkTarget}" in 01-editorial-hero.md does not exist at "${absoluteTarget}"`
+        ).toBe(true);
+      }
+    });
+
+    it("all asset references in code and text resolve to valid files in public/", () => {
+      const content = fs.readFileSync(EDITORIAL_GUIDE_PATH, "utf-8");
+
+      const assetRegex = /\/images\/[a-zA-Z0-9_\-.]+\.(?:webp|png|svg|jpg|jpeg)/g;
+      const assetMatches = [...content.matchAll(assetRegex)];
+      expect(assetMatches.length).toBeGreaterThan(0);
+
+      const uniqueAssets = [...new Set(assetMatches.map((m) => m[0]))];
+      for (const assetPath of uniqueAssets) {
+        const absoluteAssetPath = path.join(REPO_ROOT, "public", assetPath);
+        expect(
+          fs.existsSync(absoluteAssetPath),
+          `Asset reference "${assetPath}" in 01-editorial-hero.md does not exist at "${absoluteAssetPath}"`
+        ).toBe(true);
+      }
+    });
+
+    it("strictly adheres to canonical domain terminology from CONTEXT.md", () => {
+      const content = fs.readFileSync(EDITORIAL_GUIDE_PATH, "utf-8");
+
+      expect(content).toContain("Base Plate");
+      expect(content).toContain("Shadow Caster");
+      expect(content).toContain("Penumbra");
+      expect(content).toContain("Contact Hardening");
+
+      const lowercase = content.toLowerCase();
+      expect(lowercase).not.toContain("occluder");
+      expect(lowercase).not.toContain("mask image");
+      expect(lowercase).not.toContain("canvas floor");
+      expect(lowercase).not.toContain("event animation");
+    });
   });
 });
