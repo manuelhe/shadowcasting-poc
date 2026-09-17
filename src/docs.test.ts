@@ -248,4 +248,71 @@ describe("Documentation Integrity Suite (src/docs.test.ts)", () => {
     expect(readmeContent).toContain("pnpm test");
     expect(readmeContent).toContain("pnpm lint");
   });
+
+  it("docs/guides/02-scroll-parallax.md exists, is non-empty (>500 bytes), and all relative markdown links resolve", () => {
+    const guidePath = path.join(REPO_ROOT, "docs/guides/02-scroll-parallax.md");
+    expect(fs.existsSync(guidePath), `Guide file must exist at ${guidePath}`).toBe(true);
+
+    const stats = fs.statSync(guidePath);
+    expect(stats.size).toBeGreaterThan(500);
+
+    const guideContent = fs.readFileSync(guidePath, "utf-8");
+
+    // Title verification
+    expect(guideContent).toContain("# Scenario Guide: Scroll-Driven Parallax");
+
+    // Extract all markdown links [text](target)
+    const markdownLinkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
+    const matches = [...guideContent.matchAll(markdownLinkRegex)];
+    expect(matches.length).toBeGreaterThan(0);
+
+    const guideDir = path.dirname(guidePath);
+    const checkedLinks: string[] = [];
+
+    for (const match of matches) {
+      const linkTarget = match[2].trim();
+
+      // Skip web links or intra-document fragment anchors
+      if (
+        linkTarget.startsWith("http://") ||
+        linkTarget.startsWith("https://") ||
+        linkTarget.startsWith("#")
+      ) {
+        continue;
+      }
+
+      // If it is a Next.js route link (starts with /)
+      if (linkTarget.startsWith("/")) {
+        let relativePagePath: string;
+        if (linkTarget === "/") {
+          relativePagePath = "src/app/page.tsx";
+        } else {
+          relativePagePath = path.join("src/app", linkTarget, "page.tsx");
+        }
+        const absolutePagePath = path.resolve(REPO_ROOT, relativePagePath);
+        expect(
+          fs.existsSync(absolutePagePath),
+          `Route "${linkTarget}" referenced in 02-scroll-parallax.md must resolve to page at "${absolutePagePath}"`
+        ).toBe(true);
+        checkedLinks.push(linkTarget);
+        continue;
+      }
+
+      // Relative file links
+      const cleanPath = linkTarget.split("#")[0];
+      const absoluteTarget = path.resolve(guideDir, cleanPath);
+      expect(
+        fs.existsSync(absoluteTarget),
+        `Broken relative link found in 02-scroll-parallax.md: target "${linkTarget}" does not exist at "${absoluteTarget}"`
+      ).toBe(true);
+      checkedLinks.push(linkTarget);
+    }
+
+    // Verify critical links were found and checked
+    expect(checkedLinks).toContain("../../CONTEXT.md");
+    expect(checkedLinks).toContain("../adr/0001-shadowcasting-component-architecture.md");
+    expect(checkedLinks).toContain("../adr/0002-decoupled-transparent-shadow-layer.md");
+    expect(checkedLinks).toContain("/showcase/scroll-top");
+    expect(checkedLinks).toContain("/showcase/scroll-mid");
+  });
 });
