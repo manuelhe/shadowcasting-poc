@@ -1,7 +1,8 @@
-import { GlobalWindow } from "happy-dom";
 import React, { act } from "react";
-import { createRoot } from "react-dom/client";
+import type { Root } from "react-dom/client";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { setupShowcaseWindow, type ShowcaseWindowEnvironment } from "../../../test-utils/setup-showcase-window";
+import type { GlobalWindow } from "happy-dom";
 
 const { currentPathname } = vi.hoisted(() => ({
   currentPathname: { value: "/showcase/scroll-top" },
@@ -41,83 +42,23 @@ import ScrollTopShowcasePage from "./page";
 import ShowcaseLayout from "../layout";
 import { resolveShadowEngine } from "@/components/ShadowBackground";
 import * as useMotionControllerModule from "@/hooks/useMotionController";
-import { clearDeviceCapabilitiesCache } from "@/lib/device-capabilities";
 
 describe("Top-of-Page Scroll-Animated Hero Showcase (/showcase/scroll-top - Issue #25)", () => {
+  let env: ShowcaseWindowEnvironment;
   let window: GlobalWindow;
   let rootContainer: HTMLElement;
-  let root: ReturnType<typeof createRoot> | null = null;
+  let root: Root;
 
   beforeEach(() => {
-    (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-    clearDeviceCapabilitiesCache();
     currentPathname.value = "/showcase/scroll-top";
-
-    window = new GlobalWindow({ url: "http://localhost:3000/showcase/scroll-top" });
-    Object.defineProperty(global, "window", { value: window, configurable: true, writable: true });
-    Object.defineProperty(global, "document", { value: window.document, configurable: true, writable: true });
-    Object.defineProperty(global, "navigator", { value: window.navigator, configurable: true, writable: true });
-    Object.defineProperty(global, "self", { value: window, configurable: true, writable: true });
-    Object.defineProperty(global, "requestAnimationFrame", {
-      value: (cb: FrameRequestCallback) => setTimeout(cb, 16) as unknown as number,
-      configurable: true,
-      writable: true,
-    });
-    Object.defineProperty(global, "cancelAnimationFrame", {
-      value: (id: number) => clearTimeout(id),
-      configurable: true,
-      writable: true,
-    });
-    Object.defineProperty(global, "addEventListener", {
-      value: window.addEventListener.bind(window),
-      configurable: true,
-      writable: true,
-    });
-    Object.defineProperty(global, "removeEventListener", {
-      value: window.removeEventListener.bind(window),
-      configurable: true,
-      writable: true,
-    });
-
-    if (typeof global.ResizeObserver === "undefined") {
-      Object.defineProperty(global, "ResizeObserver", {
-        value: class {
-          observe() {}
-          unobserve() {}
-          disconnect() {}
-        },
-        configurable: true,
-        writable: true,
-      });
-    }
-
-    if (typeof global.IntersectionObserver === "undefined") {
-      Object.defineProperty(global, "IntersectionObserver", {
-        value: class {
-          observe() {}
-          unobserve() {}
-          disconnect() {}
-        },
-        configurable: true,
-        writable: true,
-      });
-    }
-
-    const div = window.document.createElement("div");
-    window.document.body.appendChild(div);
-    rootContainer = div as unknown as HTMLElement;
-    root = createRoot(rootContainer);
+    env = setupShowcaseWindow("http://localhost:3000/showcase/scroll-top");
+    window = env.window;
+    rootContainer = env.rootContainer;
+    root = env.root;
   });
 
   afterEach(async () => {
-    if (root) {
-      await act(async () => {
-        root?.unmount();
-      });
-      root = null;
-    }
-    window.close();
-    clearDeviceCapabilitiesCache();
+    await env.cleanup();
     vi.restoreAllMocks();
   });
 
@@ -163,7 +104,7 @@ describe("Top-of-Page Scroll-Animated Hero Showcase (/showcase/scroll-top - Issu
 
     // 5. Verify resolveShadowEngine resolves shadow-2.webp caster
     const fallbackEngine = resolveShadowEngine({
-      caster: "/images/shadow-2.webp",
+      caster: { type: "image", src: "/images/shadow-2.webp" },
       basePlate: "/images/wood-background.webp",
       shadowOpacity: 0.8,
       penumbra: 30,

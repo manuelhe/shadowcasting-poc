@@ -121,22 +121,19 @@ export const SHOWCASE_STUDIES: ShowcaseStudy[] = [
 export default function ShowcaseGalleryPage() {
   return (
     <div className="w-full flex flex-col items-center pt-24 sm:pt-28 pb-20 px-4 sm:px-6 lg:px-8 relative">
-      {/* Subtle Ambient Background Hero Preview */}
-      <div className="absolute top-0 left-0 right-0 h-[480px] overflow-hidden pointer-events-none -z-10 opacity-30">
+      {/* Subtle Ambient Background Hero Preview - Architectural Timber Plate */}
+      <div className="absolute top-0 left-0 right-0 h-[480px] overflow-hidden pointer-events-none -z-10 opacity-25">
         <ShadowBackground
-          basePlate="/images/base-minimal-studio.svg"
+          basePlate="/images/wood-background.webp"
           caster={{
-            type: "komorebi",
-            density: 0.65,
-            contrast: 1.15,
-            scale: 3.2,
-            speed: 0.3,
+            type: "image",
+            src: "/images/shadow-1.webp",
           }}
-          penumbra={26}
-          motion={{ preset: "smooth", ambient: true, ambientSpeed: 0.35 }}
+          penumbra={28}
+          motion={{ preset: "smooth", ambient: true, ambientSpeed: 0.3 }}
           className="w-full h-full"
         />
-        <div className="absolute inset-0 bg-gradient-to-b from-zinc-950/30 via-zinc-950/70 to-zinc-950" />
+        <div className="absolute inset-0 bg-gradient-to-b from-zinc-950/20 via-zinc-950/70 to-zinc-950" />
       </div>
 
       <div className="max-w-6xl w-full flex flex-col gap-12">

@@ -1,7 +1,8 @@
-import { GlobalWindow } from "happy-dom";
 import React, { act } from "react";
-import { createRoot } from "react-dom/client";
+import type { Root } from "react-dom/client";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { setupShowcaseWindow, type ShowcaseWindowEnvironment } from "../../../test-utils/setup-showcase-window";
+import type { GlobalWindow } from "happy-dom";
 
 const { currentPathname } = vi.hoisted(() => ({
   currentPathname: { value: "/showcase/scroll-mid" },
@@ -41,83 +42,23 @@ import ScrollMidShowcasePage from "./page";
 import ShowcaseLayout from "../layout";
 import { resolveShadowEngine } from "@/components/ShadowBackground";
 import * as useMotionControllerModule from "@/hooks/useMotionController";
-import { clearDeviceCapabilitiesCache } from "@/lib/device-capabilities";
 
 describe("Mid-Article Scroll-Animated Feature Showcase (/showcase/scroll-mid - Issue #26)", () => {
+  let env: ShowcaseWindowEnvironment;
   let window: GlobalWindow;
   let rootContainer: HTMLElement;
-  let root: ReturnType<typeof createRoot> | null = null;
+  let root: Root;
 
   beforeEach(() => {
-    (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-    clearDeviceCapabilitiesCache();
     currentPathname.value = "/showcase/scroll-mid";
-
-    window = new GlobalWindow({ url: "http://localhost:3000/showcase/scroll-mid" });
-    Object.defineProperty(global, "window", { value: window, configurable: true, writable: true });
-    Object.defineProperty(global, "document", { value: window.document, configurable: true, writable: true });
-    Object.defineProperty(global, "navigator", { value: window.navigator, configurable: true, writable: true });
-    Object.defineProperty(global, "self", { value: window, configurable: true, writable: true });
-    Object.defineProperty(global, "requestAnimationFrame", {
-      value: (cb: FrameRequestCallback) => setTimeout(cb, 16) as unknown as number,
-      configurable: true,
-      writable: true,
-    });
-    Object.defineProperty(global, "cancelAnimationFrame", {
-      value: (id: number) => clearTimeout(id),
-      configurable: true,
-      writable: true,
-    });
-    Object.defineProperty(global, "addEventListener", {
-      value: window.addEventListener.bind(window),
-      configurable: true,
-      writable: true,
-    });
-    Object.defineProperty(global, "removeEventListener", {
-      value: window.removeEventListener.bind(window),
-      configurable: true,
-      writable: true,
-    });
-
-    if (typeof global.ResizeObserver === "undefined") {
-      Object.defineProperty(global, "ResizeObserver", {
-        value: class {
-          observe() {}
-          unobserve() {}
-          disconnect() {}
-        },
-        configurable: true,
-        writable: true,
-      });
-    }
-
-    if (typeof global.IntersectionObserver === "undefined") {
-      Object.defineProperty(global, "IntersectionObserver", {
-        value: class {
-          observe() {}
-          unobserve() {}
-          disconnect() {}
-        },
-        configurable: true,
-        writable: true,
-      });
-    }
-
-    const div = window.document.createElement("div");
-    window.document.body.appendChild(div);
-    rootContainer = div as unknown as HTMLElement;
-    root = createRoot(rootContainer);
+    env = setupShowcaseWindow("http://localhost:3000/showcase/scroll-mid");
+    window = env.window;
+    rootContainer = env.rootContainer;
+    root = env.root;
   });
 
   afterEach(async () => {
-    if (root) {
-      await act(async () => {
-        root?.unmount();
-      });
-      root = null;
-    }
-    window.close();
-    clearDeviceCapabilitiesCache();
+    await env.cleanup();
     vi.restoreAllMocks();
   });
 
@@ -132,12 +73,11 @@ describe("Mid-Article Scroll-Animated Feature Showcase (/showcase/scroll-mid - I
     const breakSection = rootContainer.querySelector('[data-testid="mid-page-shadow-break"]');
     expect(breakSection).not.toBeNull();
     expect(breakSection?.className).toContain("relative");
-    expect(breakSection?.className).toContain("w-full");
+    expect(breakSection?.className).toContain("w-screen");
     expect(breakSection?.className).toContain("h-[650px]");
     expect(breakSection?.className).toContain("my-16");
     expect(breakSection?.className).toContain("overflow-hidden");
-    expect(breakSection?.className).toContain("rounded-2xl");
-    expect(breakSection?.className).toContain("border");
+    expect(breakSection?.className).toContain("border-y");
     expect(breakSection?.className).toContain("border-neutral-800");
     expect(breakSection?.className).toContain("shadow-2xl");
 
@@ -165,7 +105,7 @@ describe("Mid-Article Scroll-Animated Feature Showcase (/showcase/scroll-mid - I
 
     // 5. Verify resolveShadowEngine resolves shadow-1.webp caster with penumbra 26 and opacity 0.85
     const fallbackEngine = resolveShadowEngine({
-      caster: "/images/shadow-1.webp",
+      caster: { type: "image", src: "/images/shadow-1.webp" },
       basePlate: "/images/decayedpaint-background.webp",
       shadowOpacity: 0.85,
       penumbra: 26,

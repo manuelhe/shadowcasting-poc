@@ -6,19 +6,42 @@ import { ShadowBackground } from "@/components/ShadowBackground";
 import { ArrowDown, Compass, Sparkles, MoveRight, SunMedium } from "lucide-react";
 
 export default function ScrollTopShowcasePage() {
+  const heroRef = React.useRef<HTMLElement>(null);
+  const [heroOffset, setHeroOffset] = React.useState<{ x: number; y: number }>({ x: 0, y: 0 });
+
+  React.useEffect(() => {
+    const handleScroll = () => {
+      const scrollY = window.scrollY || 0;
+      const heroHeight = heroRef.current?.offsetHeight || 800;
+      const heroProgress = Math.min(1, Math.max(0, scrollY / (heroHeight || 800)));
+      setHeroOffset({ x: 0, y: Math.round(heroProgress * 120) });
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    window.addEventListener("resize", handleScroll, { passive: true });
+    handleScroll();
+
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      window.removeEventListener("resize", handleScroll);
+    };
+  }, []);
+
   return (
     <div className="w-full min-h-screen bg-zinc-950 text-zinc-100 flex flex-col selection:bg-amber-500/30">
       {/* 1. TOP HERO SECTION */}
       <section
+        ref={heroRef}
         data-testid="scroll-top-hero-section"
         className="relative h-screen min-h-[640px] flex items-center justify-center overflow-hidden"
       >
         {/* Dynamic Interactive Shadow Canvas Background */}
         <ShadowBackground
           basePlate="/images/wood-background.webp"
-          caster="/images/shadow-2.webp"
+          caster={{ type: "image", src: "/images/shadow-2.webp" }}
           className="absolute inset-0"
           tier="auto"
+          offset={heroOffset}
           motion={{
             preset: "smooth",
             scrollInfluence: 120,
@@ -28,42 +51,42 @@ export default function ScrollTopShowcasePage() {
           shadowColor="#050505"
           shadowOpacity={0.8}
           penumbra={30}
-        />
+        >
+          {/* Subtle Vignette & Gradient Overlays for High Contrast Readability */}
+          <div
+            className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/20 to-zinc-950/60 pointer-events-none"
+            aria-hidden="true"
+          />
 
-        {/* Subtle Vignette & Gradient Overlays for High Contrast Readability */}
-        <div
-          className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/20 to-zinc-950/60 pointer-events-none"
-          aria-hidden="true"
-        />
-
-        {/* White Editorial Header */}
-        <div className="relative z-10 text-center px-4 max-w-4xl flex flex-col items-center gap-6 pt-16">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-mono font-medium tracking-widest uppercase bg-zinc-950/60 border border-zinc-700/60 text-zinc-300 backdrop-blur-md shadow-lg">
-            <Compass className="w-3.5 h-3.5 text-amber-400 animate-spin-slow" />
-            <span>Design Study 03 • Continuous Scroll Parallax</span>
-          </div>
-
-          <h1 className="text-5xl sm:text-7xl lg:text-8xl font-serif tracking-tight text-white font-light drop-shadow-2xl">
-            LIGHT IN TRANSIT
-          </h1>
-
-          <p className="max-w-2xl text-base sm:text-lg lg:text-xl text-zinc-200 font-light leading-relaxed drop-shadow-md">
-            As the viewport descends, subtle virtual light vectors pivot across tactile architectural grain.
-            Natural occlusion emerges through progressive scroll elevation.
-          </p>
-
-          {/* Scroll Prompt Call to Action */}
-          <div className="pt-8 flex flex-col items-center gap-3">
-            <div className="flex items-center gap-2 text-xs font-mono font-medium tracking-widest uppercase text-zinc-300">
-              <span className="w-8 h-[1px] bg-zinc-500/60" />
-              <span>SCROLL DOWN TO ANIMATE OCCLUSION</span>
-              <span className="w-8 h-[1px] bg-zinc-500/60" />
+          {/* White Editorial Header */}
+          <div className="relative z-10 text-center px-4 max-w-4xl flex flex-col items-center gap-6 pt-16 mx-auto h-full justify-center">
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-mono font-medium tracking-widest uppercase bg-zinc-950/60 border border-zinc-700/60 text-zinc-300 backdrop-blur-md shadow-lg">
+              <Compass className="w-3.5 h-3.5 text-amber-400 animate-spin-slow" />
+              <span>Design Study 03 • Continuous Scroll Parallax</span>
             </div>
-            <div className="p-2 rounded-full border border-zinc-700/80 bg-zinc-900/50 text-amber-400 animate-bounce backdrop-blur-sm">
-              <ArrowDown className="w-4 h-4" />
+
+            <h1 className="text-5xl sm:text-7xl lg:text-8xl font-serif tracking-tight text-white font-light drop-shadow-2xl">
+              LIGHT IN TRANSIT
+            </h1>
+
+            <p className="max-w-2xl text-base sm:text-lg lg:text-xl text-zinc-200 font-light leading-relaxed drop-shadow-md">
+              As the viewport descends, subtle virtual light vectors pivot across tactile architectural grain.
+              Natural occlusion emerges through progressive scroll elevation.
+            </p>
+
+            {/* Scroll Prompt Call to Action */}
+            <div className="pt-8 flex flex-col items-center gap-3">
+              <div className="flex items-center gap-2 text-xs font-mono font-medium tracking-widest uppercase text-zinc-300">
+                <span className="w-8 h-[1px] bg-zinc-500/60" />
+                <span>SCROLL DOWN TO ANIMATE OCCLUSION</span>
+                <span className="w-8 h-[1px] bg-zinc-500/60" />
+              </div>
+              <div className="p-2 rounded-full border border-zinc-700/80 bg-zinc-900/50 text-amber-400 animate-bounce backdrop-blur-sm">
+                <ArrowDown className="w-4 h-4" />
+              </div>
             </div>
           </div>
-        </div>
+        </ShadowBackground>
       </section>
 
       {/* 2. GENEROUS LONG-FORM EDITORIAL ARTICLE CONTENT */}
@@ -234,7 +257,7 @@ export default function ScrollTopShowcasePage() {
               <span className="text-xs font-mono text-amber-300">wood-background.webp (2400x1600)</span>
             </div>
             <div className="p-4 sm:p-5 flex items-center justify-between">
-              <span className="text-sm font-medium text-zinc-300">Occluder Texture</span>
+              <span className="text-sm font-medium text-zinc-300">Shadow Caster Texture</span>
               <span className="text-xs font-mono text-amber-300">shadow-2.webp (Botanical Shrub)</span>
             </div>
             <div className="p-4 sm:p-5 flex items-center justify-between">

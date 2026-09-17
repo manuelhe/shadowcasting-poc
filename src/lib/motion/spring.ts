@@ -20,7 +20,7 @@ export interface SpringState2D {
   velocity: Vector2;
 }
 
-export const SPRING_PRESETS: Record<"snappy" | "smooth" | "inertial" | "bouncy" | "energetic", SpringConfig> = {
+export const SPRING_PRESETS: Record<"snappy" | "smooth" | "inertial" | "bouncy", SpringConfig> = {
   snappy: {
     stiffness: 280,
     damping: 30,
@@ -40,11 +40,6 @@ export const SPRING_PRESETS: Record<"snappy" | "smooth" | "inertial" | "bouncy" 
     stiffness: 180,
     damping: 11,
     mass: 1.0,
-  },
-  energetic: {
-    stiffness: 240,
-    damping: 18,
-    mass: 0.9,
   },
 };
 

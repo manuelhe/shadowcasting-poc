@@ -8,7 +8,7 @@ import { Compass, BookOpen, MoveRight, ArrowLeft } from "lucide-react";
 export default function ScrollMidShowcasePage() {
   const breakRef = useRef<HTMLElement>(null);
   const [scrollProgress, setScrollProgress] = useState(0);
-  const [parallaxOffset, setParallaxOffset] = useState(0);
+  const [midParallaxOffset, setMidParallaxOffset] = useState(0);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -28,13 +28,13 @@ export default function ScrollMidShowcasePage() {
         // Dynamically interpolate vertical parallax offset (-40px to +40px)
         const maxOffsetPx = 40;
         const offset = (progress - 0.5) * 2 * maxOffsetPx;
-        setParallaxOffset(offset);
+        setMidParallaxOffset(offset);
       } else if (rect.top > windowHeight) {
         setScrollProgress(0);
-        setParallaxOffset(-40);
+        setMidParallaxOffset(-40);
       } else {
         setScrollProgress(1);
-        setParallaxOffset(40);
+        setMidParallaxOffset(40);
       }
     };
 
@@ -121,15 +121,16 @@ export default function ScrollMidShowcasePage() {
           ref={breakRef}
           data-testid="mid-page-shadow-break"
           data-scroll-progress={scrollProgress.toFixed(3)}
-          data-parallax-offset={parallaxOffset.toFixed(1)}
-          className="relative w-full h-[650px] my-16 overflow-hidden rounded-2xl border border-neutral-800 shadow-2xl"
+          data-parallax-offset={midParallaxOffset.toFixed(1)}
+          className="relative w-screen left-1/2 right-1/2 -ml-[50vw] -mr-[50vw] h-[650px] my-16 overflow-hidden border-y border-neutral-800 shadow-2xl"
         >
-          {/* Dynamic Interactive Shadow Canvas Background */}
+          {/* Dynamic Interactive Shadow Canvas Background with Layered Children */}
           <ShadowBackground
             basePlate="/images/decayedpaint-background.webp"
-            caster="/images/shadow-1.webp"
+            caster={{ type: "image", src: "/images/shadow-1.webp" }}
             className="absolute inset-0"
             tier="auto"
+            offset={{ x: 0, y: Math.round(midParallaxOffset) }}
             motion={{
               preset: "smooth",
               scrollInfluence: 100,
@@ -139,35 +140,35 @@ export default function ScrollMidShowcasePage() {
             shadowColor="#050505"
             shadowOpacity={0.85}
             penumbra={26}
-          />
-
-          {/* Subtle Vignette & Depth Mask */}
-          <div
-            className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/20 to-black/60 pointer-events-none"
-            aria-hidden="true"
-          />
-
-          {/* Overlay Stylized White Pull-Quote / Caption */}
-          <div
-            data-testid="mid-page-pullquote"
-            className="absolute inset-0 z-10 flex flex-col items-center justify-center text-center p-6 sm:p-12 pointer-events-none transition-transform duration-75 ease-out"
-            style={{ transform: `translate3d(0, ${parallaxOffset * -0.3}px, 0)` }}
           >
-            <div className="max-w-2xl px-8 py-8 rounded-2xl bg-zinc-950/70 backdrop-blur-md border border-neutral-700/60 shadow-2xl flex flex-col items-center gap-4">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-[11px] font-mono tracking-widest uppercase bg-zinc-900/80 border border-neutral-700/80 text-amber-300">
-                <Compass className="w-3 h-3 text-amber-400" />
-                <span>Observation // Viewport Interlude</span>
+            {/* Subtle Vignette & Depth Mask */}
+            <div
+              className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/20 to-black/60 pointer-events-none"
+              aria-hidden="true"
+            />
+
+            {/* Overlay Stylized White Pull-Quote / Caption */}
+            <div
+              data-testid="mid-page-pullquote"
+              className="absolute inset-0 z-10 flex flex-col items-center justify-center text-center p-6 sm:p-12 pointer-events-none transition-transform duration-75 ease-out"
+              style={{ transform: `translate3d(0, ${midParallaxOffset * -0.3}px, 0)` }}
+            >
+              <div className="max-w-2xl px-8 py-8 rounded-2xl bg-zinc-950/70 backdrop-blur-md border border-neutral-700/60 shadow-2xl flex flex-col items-center gap-4">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-[11px] font-mono tracking-widest uppercase bg-zinc-900/80 border border-neutral-700/80 text-amber-300">
+                  <Compass className="w-3 h-3 text-amber-400" />
+                  <span>Observation // Viewport Interlude</span>
+                </div>
+
+                <blockquote className="text-2xl sm:text-3xl md:text-4xl font-serif font-light text-white leading-snug tracking-tight drop-shadow-lg">
+                  “SURFACE DEGREDATION AS A LIGHT-HARVESTING MEDIUM”
+                </blockquote>
+
+                <figcaption className="text-xs sm:text-sm font-mono text-zinc-300 tracking-wider uppercase">
+                  — Industrial Surface Metallurgy, Archival Monograph
+                </figcaption>
               </div>
-
-              <blockquote className="text-2xl sm:text-3xl md:text-4xl font-serif font-light text-white leading-snug tracking-tight drop-shadow-lg">
-                “SURFACE DEGREDATION AS A LIGHT-HARVESTING MEDIUM”
-              </blockquote>
-
-              <figcaption className="text-xs sm:text-sm font-mono text-zinc-300 tracking-wider uppercase">
-                — Industrial Surface Metallurgy, Archival Monograph
-              </figcaption>
             </div>
-          </div>
+          </ShadowBackground>
         </section>
 
         {/* 3. CONCLUDING CONTENT */}

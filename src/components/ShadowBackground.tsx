@@ -20,11 +20,6 @@ export type ShadowCasterConfig =
   | { type: "branch"; depth?: number; leafDensity?: number; swaySpeed?: number };
 
 /**
- * Caster configuration or direct image path string shorthand.
- */
-export type ShadowCasterInput = ShadowCasterConfig | string;
-
-/**
  * Degradation tiers for progressive enhancement.
  * Supports canonical and force overrides seamlessly.
  */
@@ -39,7 +34,7 @@ export type DegradationTier =
 /**
  * Calibrated spring motion behavior presets.
  */
-export type MotionPreset = "smooth" | "snappy" | "inertial" | "bouncy" | "energetic" | "none";
+export type MotionPreset = "smooth" | "snappy" | "inertial" | "bouncy" | "none";
 
 /**
  * Spring physics, parallax, and ambient motion configuration for interactive shadowcasting.
@@ -66,7 +61,7 @@ export interface ShadowBackgroundProps
   extends React.HTMLAttributes<HTMLDivElement> {
   basePlate: string;
   poster?: string;
-  caster: ShadowCasterInput;
+  caster: ShadowCasterConfig;
   tier?: DegradationTier;
   degradation?: DegradationTier;
   penumbra?: number;
@@ -78,6 +73,7 @@ export interface ShadowBackgroundProps
   fit?: "cover" | "contain" | "fill";
   motion?: MotionPreset | MotionConfig;
   blendMode?: "multiply" | "normal";
+  offset?: { x: number; y: number };
   onTierChange?: (tier: string) => void;
   onRest?: () => void;
   onWake?: () => void;
@@ -282,7 +278,7 @@ export function getPerspectiveTransform(
  * Parameters for resolving the dynamic shadow synthesis engine.
  */
 export interface ResolveEngineOptions {
-  caster: ShadowCasterInput;
+  caster: ShadowCasterConfig;
   basePlate?: string;
   shadowColor?: string;
   penumbra?: number;
@@ -292,6 +288,7 @@ export interface ResolveEngineOptions {
   useCanvasFallback?: boolean;
   onWebGlError?: () => void;
   motionOutput?: MotionOutput;
+  offset?: { x: number; y: number };
 }
 
 /**
@@ -309,12 +306,14 @@ export function resolveShadowEngine({
   useCanvasFallback = false,
   onWebGlError,
   motionOutput,
+  offset,
 }: ResolveEngineOptions): React.ReactElement<Record<string, unknown>> {
-  const resolvedCaster: ShadowCasterConfig =
-    typeof caster === "string" ? { type: "image", src: caster } : caster;
+  const resolvedCaster: ShadowCasterConfig = caster;
   const isDynamicMotion = motionOutput != null;
-  const offsetX = isDynamicMotion ? motionOutput.shadowOffsetX : lightDirection[0];
-  const offsetY = isDynamicMotion ? motionOutput.shadowOffsetY : lightDirection[1];
+  const extraOffsetX = offset?.x ?? 0;
+  const extraOffsetY = offset?.y ?? 0;
+  const offsetX = (isDynamicMotion ? motionOutput.shadowOffsetX : lightDirection[0]) + extraOffsetX;
+  const offsetY = (isDynamicMotion ? motionOutput.shadowOffsetY : lightDirection[1]) + extraOffsetY;
   const effectivePenumbra = isDynamicMotion
     ? Math.round(penumbra * motionOutput.penumbraMultiplier)
     : penumbra;
@@ -420,6 +419,7 @@ export const ShadowBackground = React.forwardRef<
     fit = "cover",
     motion = "smooth",
     blendMode = "multiply",
+    offset,
     onTierChange,
     onRest,
     onWake,
@@ -625,8 +625,8 @@ export const ShadowBackground = React.forwardRef<
                 transform: getPerspectiveTransform(
                   output.skewX,
                   output.skewY,
-                  output.x ?? output.shadowOffsetX,
-                  output.y ?? output.shadowOffsetY
+                  (output.x ?? output.shadowOffsetX) + (offset?.x ?? 0),
+                  (output.y ?? output.shadowOffsetY) + (offset?.y ?? 0)
                 ),
               }
             : undefined
@@ -683,6 +683,7 @@ export const ShadowBackground = React.forwardRef<
               contactHardening,
               shadowOpacity,
               lightDirection,
+              offset,
               useCanvasFallback: effectiveTier === "low-dynamic" || !webGlSupported,
               onWebGlError: () => {
                 setWebGlSupported(false);

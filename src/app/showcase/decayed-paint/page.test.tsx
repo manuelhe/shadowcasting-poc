@@ -1,7 +1,7 @@
-import { GlobalWindow } from "happy-dom";
 import React, { act } from "react";
-import { createRoot } from "react-dom/client";
+import type { Root } from "react-dom/client";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { setupShowcaseWindow, type ShowcaseWindowEnvironment } from "../../../test-utils/setup-showcase-window";
 
 const { currentPathname, shadowBgPropsSpy } = vi.hoisted(() => ({
   currentPathname: { value: "/showcase/decayed-paint" },
@@ -44,50 +44,22 @@ vi.mock("@/lib/device-capabilities", async () => {
 
 import DecayedPaintShowcasePage from "./page";
 import ShowcaseLayout from "../layout";
-import { clearDeviceCapabilitiesCache } from "../../../lib/device-capabilities";
 
 describe("Industrial Decayed Paint & Brutalist Typography Showcase (Issue #24)", () => {
-  let window: GlobalWindow;
+  let env: ShowcaseWindowEnvironment;
   let rootContainer: HTMLElement;
-  let root: ReturnType<typeof createRoot> | null = null;
+  let root: Root;
 
   beforeEach(() => {
-    (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-    clearDeviceCapabilitiesCache();
     shadowBgPropsSpy.mockClear();
     currentPathname.value = "/showcase/decayed-paint";
-
-    window = new GlobalWindow({ url: "http://localhost:3000/showcase/decayed-paint" });
-    Object.defineProperty(global, "window", { value: window, configurable: true, writable: true });
-    Object.defineProperty(global, "document", { value: window.document, configurable: true, writable: true });
-    Object.defineProperty(global, "navigator", { value: window.navigator, configurable: true, writable: true });
-    Object.defineProperty(global, "self", { value: window, configurable: true, writable: true });
-    Object.defineProperty(global, "requestAnimationFrame", {
-      value: (cb: FrameRequestCallback) => setTimeout(cb, 16) as unknown as number,
-      configurable: true,
-      writable: true,
-    });
-    Object.defineProperty(global, "cancelAnimationFrame", {
-      value: (id: number) => clearTimeout(id),
-      configurable: true,
-      writable: true,
-    });
-
-    const div = window.document.createElement("div");
-    window.document.body.appendChild(div);
-    rootContainer = div as unknown as HTMLElement;
-    root = createRoot(rootContainer);
+    env = setupShowcaseWindow("http://localhost:3000/showcase/decayed-paint");
+    rootContainer = env.rootContainer;
+    root = env.root;
   });
 
   afterEach(async () => {
-    if (root) {
-      await act(async () => {
-        root?.unmount();
-      });
-      root = null;
-    }
-    window.close();
-    clearDeviceCapabilitiesCache();
+    await env.cleanup();
   });
 
   describe("1. ShadowBackground Asset & Physics Configuration", () => {
@@ -100,14 +72,14 @@ describe("Industrial Decayed Paint & Brutalist Typography Showcase (Issue #24)",
       const props = shadowBgPropsSpy.mock.calls[0][0];
 
       expect(props.basePlate).toBe("/images/decayedpaint-background.webp");
-      expect(props.caster).toBe("/images/shadow-2.webp");
+      expect(props.caster).toEqual({ type: "image", src: "/images/shadow-2.webp" });
       expect(props.className).toContain("absolute inset-0");
       expect(props.tier).toBe("auto");
       expect(props.shadowColor).toBe("#080808");
       expect(props.shadowOpacity).toBe(0.85);
       expect(props.penumbra).toBe(24);
       expect(props.motion).toEqual({
-        preset: "energetic",
+        preset: "snappy",
         ambient: true,
         maxDisplacementPx: 45,
       });
@@ -115,7 +87,7 @@ describe("Industrial Decayed Paint & Brutalist Typography Showcase (Issue #24)",
       const shadowMock = rootContainer.querySelector('[data-testid="shadow-background-mock"]');
       expect(shadowMock).not.toBeNull();
       expect(shadowMock?.getAttribute("data-base-plate")).toBe("/images/decayedpaint-background.webp");
-      expect(shadowMock?.getAttribute("data-caster")).toBe("/images/shadow-2.webp");
+      expect(shadowMock?.getAttribute("data-caster")).toContain("/images/shadow-2.webp");
     });
 
     it("renders with a full-viewport container and dark neutral background", async () => {
@@ -159,7 +131,7 @@ describe("Industrial Decayed Paint & Brutalist Typography Showcase (Issue #24)",
       expect(text).toContain("STUDY NO. 02 // INDUSTRIAL PATINA");
       expect(text).toContain("BASE: DISTRESSED LEAD");
       expect(text).toContain("CASTER: SHADOW-02");
-      expect(text).toContain("PRESET: ENERGETIC");
+      expect(text).toContain("PRESET: SNAPPY");
       expect(text).toContain("0.85 ALPHA");
       expect(text).toContain("24PX GAUSSIAN");
       expect(text).toContain("±45PX SPRING DAMPED");

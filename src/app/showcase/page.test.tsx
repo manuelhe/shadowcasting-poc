@@ -1,7 +1,7 @@
-import { GlobalWindow } from "happy-dom";
 import React, { act } from "react";
-import { createRoot } from "react-dom/client";
+import type { Root } from "react-dom/client";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { setupShowcaseWindow, type ShowcaseWindowEnvironment } from "../../test-utils/setup-showcase-window";
 
 const { currentPathname } = vi.hoisted(() => ({
   currentPathname: { value: "/showcase" },
@@ -40,83 +40,21 @@ vi.mock("@/lib/device-capabilities", async () => {
 import ShowcaseGalleryPage from "./page";
 import ShowcaseLayout from "./layout";
 import { ShowcaseNav } from "@/components/ShowcaseNav";
-import { clearDeviceCapabilitiesCache } from "@/lib/device-capabilities";
 
 describe("Showcase Gallery Hub & Shell Navigation (Issue #22)", () => {
-  let window: GlobalWindow;
+  let env: ShowcaseWindowEnvironment;
   let rootContainer: HTMLElement;
-  let root: ReturnType<typeof createRoot> | null = null;
+  let root: Root;
 
   beforeEach(() => {
-    (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-    clearDeviceCapabilitiesCache();
     currentPathname.value = "/showcase";
-
-    window = new GlobalWindow({ url: "http://localhost:3000/showcase" });
-    Object.defineProperty(global, "window", { value: window, configurable: true, writable: true });
-    Object.defineProperty(global, "document", { value: window.document, configurable: true, writable: true });
-    Object.defineProperty(global, "navigator", { value: window.navigator, configurable: true, writable: true });
-    Object.defineProperty(global, "self", { value: window, configurable: true, writable: true });
-    Object.defineProperty(global, "requestAnimationFrame", {
-      value: (cb: FrameRequestCallback) => setTimeout(cb, 16) as unknown as number,
-      configurable: true,
-      writable: true,
-    });
-    Object.defineProperty(global, "cancelAnimationFrame", {
-      value: (id: number) => clearTimeout(id),
-      configurable: true,
-      writable: true,
-    });
-    Object.defineProperty(global, "addEventListener", {
-      value: window.addEventListener.bind(window),
-      configurable: true,
-      writable: true,
-    });
-    Object.defineProperty(global, "removeEventListener", {
-      value: window.removeEventListener.bind(window),
-      configurable: true,
-      writable: true,
-    });
-
-    if (typeof global.ResizeObserver === "undefined") {
-      Object.defineProperty(global, "ResizeObserver", {
-        value: class {
-          observe() {}
-          unobserve() {}
-          disconnect() {}
-        },
-        configurable: true,
-        writable: true,
-      });
-    }
-
-    if (typeof global.IntersectionObserver === "undefined") {
-      Object.defineProperty(global, "IntersectionObserver", {
-        value: class {
-          observe() {}
-          unobserve() {}
-          disconnect() {}
-        },
-        configurable: true,
-        writable: true,
-      });
-    }
-
-    const div = window.document.createElement("div");
-    window.document.body.appendChild(div);
-    rootContainer = div as unknown as HTMLElement;
-    root = createRoot(rootContainer);
+    env = setupShowcaseWindow("http://localhost:3000/showcase");
+    rootContainer = env.rootContainer;
+    root = env.root;
   });
 
   afterEach(async () => {
-    if (root) {
-      await act(async () => {
-        root?.unmount();
-      });
-      root = null;
-    }
-    window.close();
-    clearDeviceCapabilitiesCache();
+    await env.cleanup();
   });
 
   it("renders the gallery hub header, title, and study suite overview", async () => {
