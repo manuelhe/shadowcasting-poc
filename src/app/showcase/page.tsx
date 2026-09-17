@@ -107,7 +107,7 @@ export const SHOWCASE_STUDIES: ShowcaseStudy[] = [
     icon: BookOpen,
     assetPairings: {
       basePlate: "decayedpaint-background.webp",
-      shadowCasters: "shadow-2.webp",
+      shadowCasters: "shadow-1.webp",
       technique: "Mid-Screen Intersection Tracking (0.0 → 1.0 Entry-to-Exit)",
     },
     highlights: [
