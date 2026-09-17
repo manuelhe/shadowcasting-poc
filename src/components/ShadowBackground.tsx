@@ -67,6 +67,8 @@ export interface ShadowBackgroundProps
   penumbra?: number;
   contactHardening?: boolean;
   shadowOpacity?: number;
+  shadowColor?: string;
+  basePlateMotion?: boolean;
   lightDirection?: [number, number, number];
   fit?: "cover" | "contain" | "fill";
   motion?: MotionPreset | MotionConfig;
@@ -145,25 +147,41 @@ export function evaluateHardwareGating(): boolean {
 }
 
 /**
+ * Options for constructing the Canvas2D shadow engine fallback element.
+ */
+export interface Canvas2dFallbackOptions {
+  basePlate?: string;
+  casterSrc: string;
+  offsetX: number;
+  offsetY: number;
+  penumbra: number;
+  shadowOpacity: number;
+  ambientScale?: number;
+  shadowColor?: string;
+}
+
+/**
  * Helper constructing the Canvas2D shadow engine fallback element.
  */
-export function renderCanvas2dFallback(
-  basePlate: string,
-  casterSrc: string,
-  offsetX: number,
-  offsetY: number,
-  blurRadius: number,
-  shadowOpacity: number,
-  ambientScale = 1.0
-): React.ReactElement<Record<string, unknown>> {
+export function renderCanvas2dFallback({
+  basePlate,
+  casterSrc,
+  offsetX,
+  offsetY,
+  penumbra,
+  shadowOpacity,
+  ambientScale = 1.0,
+  shadowColor = "#000000",
+}: Canvas2dFallbackOptions): React.ReactElement<Record<string, unknown>> {
   return (
     <Canvas2dShadowEngine
       baseImage={basePlate}
       casterImage={casterSrc}
       offsetX={offsetX}
       offsetY={offsetY}
-      blurRadius={blurRadius}
+      blurRadius={penumbra}
       shadowOpacity={shadowOpacity}
+      shadowColor={shadowColor}
       ambientScale={ambientScale}
     />
   );
@@ -240,11 +258,28 @@ export function resolveScrollInfluence(influence?: boolean | number): number {
 }
 
 /**
+ * Helper computing the 3D perspective CSS transform string.
+ */
+export function getPerspectiveTransform(
+  skewX: number,
+  skewY: number,
+  translateX?: number,
+  translateY?: number
+): string {
+  const tilt = `perspective(1000px) rotateX(${skewY}deg) rotateY(${skewX}deg)`;
+  if (translateX !== undefined && translateY !== undefined) {
+    return `${tilt} translate3d(${translateX}px, ${translateY}px, 0)`;
+  }
+  return tilt;
+}
+
+/**
  * Parameters for resolving the dynamic shadow synthesis engine.
  */
 export interface ResolveEngineOptions {
   caster: ShadowCasterConfig;
-  basePlate: string;
+  basePlate?: string;
+  shadowColor?: string;
   penumbra?: number;
   contactHardening?: boolean;
   shadowOpacity?: number;
@@ -261,6 +296,7 @@ export interface ResolveEngineOptions {
 export function resolveShadowEngine({
   caster,
   basePlate,
+  shadowColor = "#000000",
   penumbra = 24,
   contactHardening = true,
   shadowOpacity = 0.65,
@@ -285,14 +321,16 @@ export function resolveShadowEngine({
   switch (caster.type) {
     case "image": {
       const effectiveOpacity = caster.opacity ?? shadowOpacity;
-      const canvasFallback = renderCanvas2dFallback(
+      const canvasFallback = renderCanvas2dFallback({
         basePlate,
-        caster.src,
+        casterSrc: caster.src,
         offsetX,
         offsetY,
-        effectivePenumbra,
-        effectiveOpacity
-      );
+        penumbra: effectivePenumbra,
+        shadowOpacity: effectiveOpacity,
+        ambientScale: 1.0,
+        shadowColor,
+      });
 
       if (useCanvasFallback) {
         return canvasFallback;
@@ -309,6 +347,7 @@ export function resolveShadowEngine({
             offsetY={offsetY}
             blurRadius={effectivePenumbra}
             shadowOpacity={effectiveOpacity}
+            shadowColor={shadowColor}
             ambientScale={1.0}
             contactHardening={contactHardening}
           />
@@ -320,6 +359,7 @@ export function resolveShadowEngine({
       return (
         <ProceduralKomorebiEngine
           basePlate={basePlate}
+          shadowColor={shadowColor}
           shadowOpacity={shadowOpacity * (caster.density ?? 1.0)}
           scale={caster.scale ?? 3.5}
           speed={caster.speed ?? 0.5}
@@ -334,6 +374,7 @@ export function resolveShadowEngine({
       return (
         <ProceduralBranchEngine
           basePlate={basePlate}
+          shadowColor={shadowColor}
           shadowOpacity={shadowOpacity}
           penumbraRadius={effectivePenumbra}
           windStrength={windStrength}
@@ -365,6 +406,8 @@ export const ShadowBackground = React.forwardRef<
     penumbra = 24,
     contactHardening = true,
     shadowOpacity = 0.65,
+    shadowColor = "#000000",
+    basePlateMotion = false,
     lightDirection = [20, 25, 1],
     fit = "cover",
     motion = "smooth",
@@ -521,19 +564,22 @@ export const ShadowBackground = React.forwardRef<
     };
   }, [effectiveTier, onTierChange]);
 
-  const effectivePoster = poster || basePlate;
+  const isDynamicActive =
+    effectiveTier !== "force-static" &&
+    effectiveTier !== "static-poster" &&
+    isDynamicMounted;
+  const isMotionActive = isDynamicActive && !isMotionDisabled;
+
+  // True poster-to-BasePlate cross-fade:
+  // Render Base Plate at the bottom. When poster is distinct, render poster on top
+  // and smoothly fade it out upon dynamic hydration to avoid double-shadow artifacts.
+  const hasDistinctPoster = Boolean(poster && poster !== basePlate);
   const fitClass =
     fit === "contain"
       ? "object-contain"
       : fit === "fill"
       ? "object-fill"
       : "object-cover";
-
-  const isDynamicActive =
-    effectiveTier !== "force-static" &&
-    effectiveTier !== "static-poster" &&
-    isDynamicMounted;
-  const isMotionActive = isDynamicActive && !isMotionDisabled;
 
   const containerStyle: React.CSSProperties = {
     ...(style as React.CSSProperties),
@@ -548,6 +594,7 @@ export const ShadowBackground = React.forwardRef<
         .join(" ")}
       data-fit={fit}
       data-motion-active={isMotionActive ? "true" : "false"}
+      data-base-plate-motion={basePlateMotion ? "true" : "false"}
       data-blend-mode={blendMode}
       style={containerStyle}
       {...(isMotionActive
@@ -561,35 +608,69 @@ export const ShadowBackground = React.forwardRef<
         : {})}
       {...restProps}
     >
-      {/* Background canvas / poster layer */}
-      <div className="absolute inset-0 pointer-events-none z-0">
-        {/* Static poster image: SSR-safe next/image with priority for zero LCP and 0.000 CLS */}
+      {/* Base Plate / poster layer */}
+      <div
+        className="absolute inset-0 pointer-events-none z-0 transform-gpu"
+        style={
+          basePlateMotion && isMotionActive
+            ? {
+                transform: getPerspectiveTransform(
+                  output.skewX,
+                  output.skewY,
+                  output.x ?? output.shadowOffsetX,
+                  output.y ?? output.shadowOffsetY
+                ),
+              }
+            : undefined
+        }
+      >
+        {/* Base Plate image: clean substrate rendered at the bottom */}
         <Image
-          src={effectivePoster}
+          src={basePlate}
           alt=""
           fill
           priority
           sizes="100vw"
-          className={fitClass}
+          className={[fitClass, "transition-opacity duration-300"].filter(Boolean).join(" ")}
           aria-hidden="true"
         />
+
+        {/* Poster image: rendered on top when distinct from Base Plate, cross-fading to opacity-0 upon dynamic hydration */}
+        {hasDistinctPoster && (
+          <Image
+            src={poster!}
+            alt=""
+            fill
+            priority
+            sizes="100vw"
+            className={[
+              fitClass,
+              "transition-opacity duration-300",
+              isDynamicActive ? "opacity-0 pointer-events-none" : "opacity-100",
+            ]
+              .filter(Boolean)
+              .join(" ")}
+            aria-hidden="true"
+          />
+        )}
 
         {/* Dynamic Shadow Synthesis Engine */}
         {isDynamicActive && (
           <div
-            className="absolute inset-0 transition-opacity duration-300 transform-gpu"
+            className="absolute inset-[-5%] w-[110%] h-[110%] transition-opacity duration-300 transform-gpu pointer-events-none"
             style={{
               mixBlendMode: blendMode,
-              ...(isMotionActive
+              ...(!basePlateMotion && isMotionActive
                 ? {
-                    transform: `perspective(1000px) rotateX(${output.skewY}deg) rotateY(${output.skewX}deg)`,
+                    transform: getPerspectiveTransform(output.skewX, output.skewY),
                   }
                 : {}),
             }}
           >
             {resolveShadowEngine({
               caster,
-              basePlate,
+              basePlate: undefined,
+              shadowColor,
               penumbra,
               contactHardening,
               shadowOpacity,

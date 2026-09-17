@@ -4,12 +4,13 @@ import React, { useRef, useEffect } from "react";
 import Image from "next/image";
 
 export interface ShadowEngineProps {
-  baseImage: string;
+  baseImage?: string;
   casterImage: string;
   offsetX: number;
   offsetY: number;
   blurRadius: number;
   shadowOpacity: number;
+  shadowColor?: string;
   ambientScale: number;
   onFrameStats?: (stats: { frameTimeMs: number; fps: number }) => void;
 }
@@ -55,18 +56,25 @@ export function CssShadowEngine({
   }, [onFrameStats]);
 
   return (
-    <div className="relative w-full h-full overflow-hidden bg-zinc-950 select-none">
+    <div
+      className={[
+        "relative w-full h-full overflow-hidden select-none",
+        baseImage ? "bg-zinc-950" : "bg-transparent",
+      ].join(" ")}
+    >
       {/* Base Plate */}
-      <div className="absolute inset-0 z-0">
-        <Image
-          src={baseImage}
-          alt="CSS Base Plate"
-          fill
-          priority
-          sizes="(max-width: 1200px) 100vw, 1200px"
-          className="object-cover"
-        />
-      </div>
+      {baseImage && (
+        <div className="absolute inset-0 z-0">
+          <Image
+            src={baseImage}
+            alt="CSS Base Plate"
+            fill
+            priority
+            sizes="(max-width: 1200px) 100vw, 1200px"
+            className="object-cover"
+          />
+        </div>
+      )}
 
       {/* CSS Filter Shadow Caster */}
       <div

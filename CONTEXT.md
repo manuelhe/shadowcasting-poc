@@ -43,3 +43,9 @@ _Avoid_: Idle loop, wind animation
 **Interactive Motion**:
 Dynamic adjustments to shadow perspective, displacement, or penumbra driven by user events such as scrolling, pointer movement, or touch.
 _Avoid_: Event animation, reactive shadow
+
+## Domain Decisions
+
+- [ADR-0001: Dynamic Shadowcasting Component Architecture](docs/adr/0001-shadowcasting-component-architecture.md)
+- [ADR-0002: Decoupled Transparent Shadow Layer Architecture](docs/adr/0002-decoupled-transparent-shadow-layer.md)
+

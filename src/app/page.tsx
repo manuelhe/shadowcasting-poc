@@ -90,6 +90,7 @@ export default function Home() {
   const [heroMotionPreset, setHeroMotionPreset] = useState<MotionPreset>("smooth");
   const [heroPenumbra, setHeroPenumbra] = useState<number>(24);
   const [heroBasePlate, setHeroBasePlate] = useState<string>("/images/base-minimal-studio.svg");
+  const [heroBasePlateMotion, setHeroBasePlateMotion] = useState<boolean>(false);
   const [ctaClickCount, setCtaClickCount] = useState<number>(0);
   const [vitals, setVitals] = useState<VitalsSnapshot>({
     lcp: null,
@@ -157,13 +158,13 @@ export default function Home() {
 
           <div className="flex items-center gap-3">
             <a
-              href="https://github.com/manuelhe/shadowcasting-poc/blob/main/docs/adr/0001-shadowcasting-component-architecture.md"
+              href="https://github.com/manuelhe/shadowcasting-poc/blob/main/docs/adr/0002-decoupled-transparent-shadow-layer.md"
               target="_blank"
               rel="noreferrer"
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-800 transition"
             >
               <Layers className="w-3.5 h-3.5 text-sky-400" />
-              <span>ADR-0001</span>
+              <span>ADR-0001 &amp; ADR-0002</span>
               <ExternalLink className="w-3 h-3 text-zinc-500" />
             </a>
 
@@ -267,6 +268,7 @@ export default function Home() {
               degradation={heroDegradation}
               motion={heroMotionPreset}
               penumbra={heroPenumbra}
+              basePlateMotion={heroBasePlateMotion}
               contactHardening={true}
               fit="cover"
               className="h-[560px] sm:h-[620px] lg:h-[660px] w-full"
@@ -278,7 +280,7 @@ export default function Home() {
                   {/* Badge */}
                   <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold bg-zinc-950/75 border border-sky-500/30 text-sky-300 shadow-lg backdrop-blur-md self-start">
                     <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                    <span>Production Architecture • ADR-0001</span>
+                    <span>Production Architecture • ADR-0001 &amp; ADR-0002</span>
                   </div>
 
                   {/* Telemetry Status Pills */}
@@ -293,6 +295,23 @@ export default function Home() {
                     <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-mono bg-zinc-950/75 border border-zinc-800/90 text-zinc-300 shadow-md backdrop-blur-md">
                       <span className="text-zinc-500 font-sans">Tier:</span>
                       <span className="text-amber-400 font-semibold uppercase">{heroDegradation}</span>
+                    </div>
+
+                    {/* Base Plate Motion (ADR-0002 Decoupled Substrate) */}
+                    <div
+                      data-testid="hero-base-plate-telemetry"
+                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-mono bg-zinc-950/75 border border-zinc-800/90 text-zinc-300 shadow-md backdrop-blur-md"
+                    >
+                      <span className="text-zinc-500 font-sans">Base Plate:</span>{" "}
+                      <span
+                        className={
+                          heroBasePlateMotion
+                            ? "text-amber-400 font-semibold"
+                            : "text-emerald-400 font-semibold"
+                        }
+                      >
+                        {heroBasePlateMotion ? "Dynamic (Coupled)" : "Static (Decoupled)"}
+                      </span>
                     </div>
 
                     {/* Spring Damping */}
@@ -381,7 +400,7 @@ export default function Home() {
               </span>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 text-xs">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 text-xs">
               {/* 1. Caster Switcher */}
               <div className="space-y-1.5">
                 <label className="text-zinc-400 font-semibold block">
@@ -518,6 +537,43 @@ export default function Home() {
                       </button>
                     );
                   })}
+                </div>
+              </div>
+
+              {/* 6. Base Plate Motion Toggle (ADR-0002) */}
+              <div className="space-y-1.5">
+                <label className="text-zinc-400 font-semibold block">
+                  Base Plate Motion
+                </label>
+                <div className="flex flex-col gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setHeroBasePlateMotion(false)}
+                    className={`px-2.5 py-1.5 rounded-lg text-left font-medium border transition flex items-center justify-between ${
+                      !heroBasePlateMotion
+                        ? "bg-emerald-500/20 border-emerald-500 text-emerald-300 font-semibold"
+                        : "bg-zinc-950/60 border-zinc-800 text-zinc-400 hover:text-zinc-200 hover:border-zinc-700"
+                    }`}
+                  >
+                    <span>Static (Default)</span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-800/80 text-zinc-400 font-mono">
+                      ADR-0002
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setHeroBasePlateMotion(true)}
+                    className={`px-2.5 py-1.5 rounded-lg text-left font-medium border transition flex items-center justify-between ${
+                      heroBasePlateMotion
+                        ? "bg-amber-500/20 border-amber-500 text-amber-300 font-semibold"
+                        : "bg-zinc-950/60 border-zinc-800 text-zinc-400 hover:text-zinc-200 hover:border-zinc-700"
+                    }`}
+                  >
+                    <span>Coupled Motion</span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-800/80 text-zinc-400 font-mono">
+                      Full Scene
+                    </span>
+                  </button>
                 </div>
               </div>
             </div>
@@ -695,6 +751,15 @@ export default function Home() {
               className="hover:text-zinc-200 transition"
             >
               ADR-0001
+            </a>
+            <span>•</span>
+            <a
+              href="https://github.com/manuelhe/shadowcasting-poc/blob/main/docs/adr/0002-decoupled-transparent-shadow-layer.md"
+              target="_blank"
+              rel="noreferrer"
+              className="hover:text-zinc-200 transition"
+            >
+              ADR-0002
             </a>
             <span>•</span>
             <a

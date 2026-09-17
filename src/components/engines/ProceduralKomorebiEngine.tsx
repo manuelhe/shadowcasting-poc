@@ -2,9 +2,11 @@
 
 import React, { useRef, useEffect } from "react";
 import { createKomorebiField } from "@/lib/procedural/komorebi";
+import { parseColorToRgb } from "./color-utils";
 
 export interface ProceduralKomorebiProps {
-  basePlate: string;
+  basePlate?: string;
+  shadowColor?: string;
   shadowOpacity: number;
   scale: number;
   speed: number;
@@ -44,6 +46,8 @@ uniform float u_speed;
 uniform float u_contrast;
 uniform float u_shadowOpacity;
 uniform vec2 u_windDir;
+uniform vec3 u_shadowColor;
+uniform float u_useBaseTexture;
 
 vec3 permute(vec3 x) { return mod(((x*34.0)+1.0)*x, 289.0); }
 
@@ -95,8 +99,6 @@ float fbm(vec2 p, float t) {
 }
 
 void main() {
-  vec4 baseColor = texture2D(u_baseTexture, v_uv);
-
   float t = u_time * u_speed;
   vec2 aspect = vec2(u_resolution.x / u_resolution.y, 1.0);
   vec2 p = v_uv * aspect * u_scale;
@@ -105,8 +107,14 @@ void main() {
   float norm = clamp((raw + 1.0) * 0.5, 0.0, 1.0);
   float shadowDensity = pow(norm, u_contrast);
 
-  vec3 shadedColor = baseColor.rgb * (1.0 - shadowDensity * u_shadowOpacity);
-  gl_FragColor = vec4(shadedColor, 1.0);
+  if (u_useBaseTexture > 0.5) {
+    vec4 baseColor = texture2D(u_baseTexture, v_uv);
+    vec3 shadedColor = baseColor.rgb * (1.0 - shadowDensity * u_shadowOpacity);
+    gl_FragColor = vec4(shadedColor, 1.0);
+  } else {
+    // Pure transparent alpha shadow synthesis
+    gl_FragColor = vec4(u_shadowColor, shadowDensity * u_shadowOpacity);
+  }
 }
 `;
 
@@ -125,6 +133,7 @@ function createShader(gl: WebGLRenderingContext, type: number, source: string): 
 
 export function ProceduralKomorebiEngine({
   basePlate,
+  shadowColor = "#000000",
   shadowOpacity,
   scale,
   speed,
@@ -138,9 +147,12 @@ export function ProceduralKomorebiEngine({
   const programRef = useRef<WebGLProgram | null>(null);
   const baseTexRef = useRef<WebGLTexture | null>(null);
   const baseImgRef = useRef<HTMLImageElement | null>(null);
+  const cpuOffscreenRef = useRef<HTMLCanvasElement | null>(null);
 
   // Keep live props in ref to avoid tearing down rAF loop
   const propsRef = useRef({
+    basePlate,
+    shadowColor,
     shadowOpacity,
     scale,
     speed,
@@ -152,6 +164,8 @@ export function ProceduralKomorebiEngine({
 
   useEffect(() => {
     propsRef.current = {
+      basePlate,
+      shadowColor,
       shadowOpacity,
       scale,
       speed,
@@ -174,12 +188,17 @@ export function ProceduralKomorebiEngine({
 
     if (mode === "gpu") {
       const gl = canvas.getContext("webgl", {
-        alpha: false,
+        alpha: true,
         antialias: false,
         powerPreference: "high-performance",
       });
       if (!gl) return;
       glRef.current = gl;
+
+      // Transparent clear and standard alpha blending
+      gl.clearColor(0.0, 0.0, 0.0, 0.0);
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
       const vs = createShader(gl, gl.VERTEX_SHADER, VS_SOURCE);
       const fs = createShader(gl, gl.FRAGMENT_SHADER, FS_SOURCE);
@@ -207,31 +226,44 @@ export function ProceduralKomorebiEngine({
       gl.enableVertexAttribArray(aPos);
       gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
 
-      const tex = gl.createTexture();
-      baseTexRef.current = tex;
-      gl.bindTexture(gl.TEXTURE_2D, tex);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-
       return () => {
         gl.deleteProgram(program);
-        if (tex) gl.deleteTexture(tex);
+        if (baseTexRef.current) {
+          gl.deleteTexture(baseTexRef.current);
+          baseTexRef.current = null;
+        }
       };
     }
   }, [mode]);
 
-  // Load Base Plate Image
+  // Load Base Plate Image only when basePlate is specified (Zero-Base VRAM Mode)
   useEffect(() => {
+    const gl = glRef.current;
+    if (!basePlate) {
+      if (gl && baseTexRef.current) {
+        gl.deleteTexture(baseTexRef.current);
+        baseTexRef.current = null;
+      }
+      baseImgRef.current = null;
+      return;
+    }
+
     const img = new window.Image();
     img.src = basePlate;
     img.onload = () => {
       baseImgRef.current = img;
-      const gl = glRef.current;
-      const tex = baseTexRef.current;
-      if (gl && tex) {
-        gl.bindTexture(gl.TEXTURE_2D, tex);
+      if (gl) {
+        if (!baseTexRef.current) {
+          const tex = gl.createTexture();
+          baseTexRef.current = tex;
+          gl.bindTexture(gl.TEXTURE_2D, tex);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        } else {
+          gl.bindTexture(gl.TEXTURE_2D, baseTexRef.current);
+        }
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
       }
     };
@@ -257,11 +289,26 @@ export function ProceduralKomorebiEngine({
           const program = programRef.current;
           if (gl && program) {
             gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
+            gl.clearColor(0.0, 0.0, 0.0, 0.0);
+            gl.clear(gl.COLOR_BUFFER_BIT);
             gl.useProgram(program);
 
-            gl.activeTexture(gl.TEXTURE0);
-            gl.bindTexture(gl.TEXTURE_2D, baseTexRef.current);
-            gl.uniform1i(gl.getUniformLocation(program, "u_baseTexture"), 0);
+            if (currentProps.basePlate && baseTexRef.current) {
+              gl.activeTexture(gl.TEXTURE0);
+              gl.bindTexture(gl.TEXTURE_2D, baseTexRef.current);
+              gl.uniform1i(gl.getUniformLocation(program, "u_baseTexture"), 0);
+              gl.uniform1f(gl.getUniformLocation(program, "u_useBaseTexture"), 1.0);
+            } else {
+              gl.uniform1f(gl.getUniformLocation(program, "u_useBaseTexture"), 0.0);
+            }
+
+            const [sr, sg, sb] = parseColorToRgb(currentProps.shadowColor);
+            gl.uniform3f(
+              gl.getUniformLocation(program, "u_shadowColor"),
+              sr,
+              sg,
+              sb
+            );
 
             gl.uniform2f(
               gl.getUniformLocation(program, "u_resolution"),
@@ -287,7 +334,7 @@ export function ProceduralKomorebiEngine({
           // CPU Simplex streaming via createKomorebiField into 2D canvas
           const ctx = canvas.getContext("2d");
           const baseImg = baseImgRef.current;
-          if (ctx && baseImg) {
+          if (ctx) {
             const w = 96; // Downsampled grid for CPU performance
             const h = 54;
             const field = createKomorebiField(w, h, elapsed * currentProps.speed, {
@@ -295,25 +342,62 @@ export function ProceduralKomorebiEngine({
               contrast: currentProps.contrast,
             });
 
-            ctx.drawImage(baseImg, 0, 0, canvas.width, canvas.height);
+            // Clear to transparent
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            if (currentProps.basePlate && baseImg) {
+              ctx.drawImage(baseImg, 0, 0, canvas.width, canvas.height);
+            }
+
+            const [sr, sg, sb] = parseColorToRgb(currentProps.shadowColor);
+            const rByte = Math.round(sr * 255);
+            const gByte = Math.round(sg * 255);
+            const bByte = Math.round(sb * 255);
 
             const imgData = ctx.createImageData(w, h);
             for (let i = 0; i < field.length; i++) {
               const alpha = Math.round(field[i] * currentProps.shadowOpacity * 255);
               const p = i * 4;
-              imgData.data[p] = 0;
-              imgData.data[p + 1] = 0;
-              imgData.data[p + 2] = 0;
+              imgData.data[p] = rByte;
+              imgData.data[p + 1] = gByte;
+              imgData.data[p + 2] = bByte;
               imgData.data[p + 3] = alpha;
             }
 
-            // Draw to temp offscreen and upscale
-            createImageBitmap(imgData).then((bmp) => {
-              ctx.save();
-              ctx.globalCompositeOperation = "multiply";
-              ctx.drawImage(bmp, 0, 0, canvas.width, canvas.height);
-              ctx.restore();
-            });
+            // Draw to temp offscreen and upscale onto transparent or base canvas
+            if (typeof createImageBitmap === "function") {
+              createImageBitmap(imgData).then((bmp) => {
+                ctx.save();
+                if (currentProps.basePlate && baseImg) {
+                  ctx.globalCompositeOperation = "multiply";
+                }
+                ctx.imageSmoothingEnabled = true;
+                ctx.drawImage(bmp, 0, 0, canvas.width, canvas.height);
+                ctx.restore();
+              }).catch(() => {});
+            } else {
+              if (!cpuOffscreenRef.current && typeof document !== "undefined") {
+                cpuOffscreenRef.current = document.createElement("canvas");
+              }
+              const off = cpuOffscreenRef.current;
+              if (off) {
+                if (off.width !== w || off.height !== h) {
+                  off.width = w;
+                  off.height = h;
+                }
+                const offCtx = off.getContext("2d");
+                if (offCtx) {
+                  offCtx.putImageData(imgData, 0, 0);
+                  ctx.save();
+                  if (currentProps.basePlate && baseImg) {
+                    ctx.globalCompositeOperation = "multiply";
+                  }
+                  ctx.imageSmoothingEnabled = true;
+                  ctx.drawImage(off, 0, 0, canvas.width, canvas.height);
+                  ctx.restore();
+                }
+              }
+            }
           }
         }
       }
@@ -333,17 +417,17 @@ export function ProceduralKomorebiEngine({
           Math.max(1, execTimesRef.current.length);
         execTimesRef.current = [];
 
-        // Real memory allocation footprint
+        // Real memory allocation footprint: 0 KB for GPU shader mode
         const memoryKb =
           currentProps.mode === "gpu"
-            ? 0 // Pure shader, zero heap buffer
-            : Math.round((96 * 54 * 4 * 2) / 1024); // CPU Float32 + ImageData buffers
+            ? 0
+            : Math.round((96 * 54 * 4 * 2) / 1024);
 
         currentProps.onFrameStats?.({
           frameTimeMs: Math.round(avgExec * 100) / 100,
           fps,
           memoryKb,
-          mode: currentProps.mode,
+          mode: currentProps.mode ?? "gpu",
         });
       }
 
@@ -373,7 +457,12 @@ export function ProceduralKomorebiEngine({
   }, []);
 
   return (
-    <div className="relative w-full h-full overflow-hidden bg-zinc-950 select-none">
+    <div
+      className={[
+        "relative w-full h-full overflow-hidden select-none",
+        basePlate ? "bg-zinc-950" : "bg-transparent",
+      ].join(" ")}
+    >
       <canvas ref={canvasRef} className="w-full h-full block" />
     </div>
   );

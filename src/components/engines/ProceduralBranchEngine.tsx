@@ -9,7 +9,8 @@ import {
 } from "@/lib/procedural/branch-skeleton";
 
 export interface ProceduralBranchProps {
-  basePlate: string;
+  basePlate?: string;
+  shadowColor?: string;
   shadowOpacity: number;
   penumbraRadius: number;
   windStrength: number;
@@ -25,6 +26,7 @@ export interface ProceduralBranchProps {
 
 export function ProceduralBranchEngine({
   basePlate,
+  shadowColor = "#000000",
   shadowOpacity,
   penumbraRadius,
   windStrength,
@@ -38,6 +40,8 @@ export function ProceduralBranchEngine({
   const skeletonRef = useRef<BranchSkeleton | null>(null);
 
   const propsRef = useRef({
+    basePlate,
+    shadowColor,
     shadowOpacity,
     penumbraRadius,
     windStrength,
@@ -49,6 +53,8 @@ export function ProceduralBranchEngine({
 
   useEffect(() => {
     propsRef.current = {
+      basePlate,
+      shadowColor,
       shadowOpacity,
       penumbraRadius,
       windStrength,
@@ -64,8 +70,12 @@ export function ProceduralBranchEngine({
   const lastReportRef = useRef(0);
   const execTimesRef = useRef<number[]>([]);
 
-  // Load base plate image
+  // Load base plate image only when provided
   useEffect(() => {
+    if (!basePlate) {
+      baseImgRef.current = null;
+      return;
+    }
     const img = new window.Image();
     img.src = basePlate;
     img.onload = () => {
@@ -99,17 +109,19 @@ export function ProceduralBranchEngine({
 
       const t0 = performance.now();
 
-      if (canvas && baseImg && baseSkeleton) {
+      if (canvas && baseSkeleton) {
         const ctx = canvas.getContext("2d");
         if (ctx) {
           const w = canvas.width;
           const h = canvas.height;
 
-          // Clear
+          // Clear to transparent
           ctx.clearRect(0, 0, w, h);
 
-          // 1. Draw base plate
-          ctx.drawImage(baseImg, 0, 0, w, h);
+          // 1. Draw base plate if present
+          if (currentProps.basePlate && baseImg) {
+            ctx.drawImage(baseImg, 0, 0, w, h);
+          }
 
           // 2. Compute dynamic harmonic sway
           const elapsed = (now - startTimeRef.current) / 1000;
@@ -121,12 +133,15 @@ export function ProceduralBranchEngine({
 
           // 3. Composite blurred shadow
           ctx.save();
-          ctx.globalCompositeOperation = "multiply";
+          if (currentProps.basePlate && baseImg) {
+            ctx.globalCompositeOperation = "multiply";
+          }
           ctx.globalAlpha = currentProps.shadowOpacity;
           ctx.filter = `blur(${Math.max(1, currentProps.penumbraRadius)}px)`;
 
-          // Render branch vector silhouette
-          renderBranchToCanvas(ctx, swayed, w, h, "#09090b");
+          // Render branch vector silhouette with shadowColor
+          const branchColor = currentProps.shadowColor || "#09090b";
+          renderBranchToCanvas(ctx, swayed, w, h, branchColor);
           ctx.restore();
         }
       }
@@ -184,7 +199,12 @@ export function ProceduralBranchEngine({
   }, []);
 
   return (
-    <div className="relative w-full h-full overflow-hidden bg-zinc-950 select-none">
+    <div
+      className={[
+        "relative w-full h-full overflow-hidden select-none",
+        basePlate ? "bg-zinc-950" : "bg-transparent",
+      ].join(" ")}
+    >
       <canvas ref={canvasRef} className="w-full h-full block" />
     </div>
   );

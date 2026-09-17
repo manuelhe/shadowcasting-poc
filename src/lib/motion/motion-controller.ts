@@ -34,6 +34,8 @@ export interface MotionControllerOptions {
 export interface MotionOutput {
   shadowOffsetX: number;
   shadowOffsetY: number;
+  x?: number;
+  y?: number;
   penumbraMultiplier: number;
   skewX: number;
   skewY: number;
@@ -201,6 +203,8 @@ export class MotionController {
     return {
       shadowOffsetX,
       shadowOffsetY,
+      x: shadowOffsetX,
+      y: shadowOffsetY,
       penumbraMultiplier,
       skewX,
       skewY,

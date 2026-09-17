@@ -25,7 +25,10 @@ import {
   isWebGLSupported,
   resolveShadowEngine,
   resolveScrollInfluence,
+  renderCanvas2dFallback,
+  getPerspectiveTransform,
   EngineErrorBoundary,
+  type Canvas2dFallbackOptions,
   ShadowCasterConfig,
   type MotionPreset,
   type MotionConfig,
@@ -690,6 +693,8 @@ describe("<ShadowBackground />", () => {
       attributes: Record<string, string>;
       width: number;
       height: number;
+      src?: string;
+      className?: string;
       appendChild: (child: unknown) => unknown;
       removeChild: (child: unknown) => unknown;
       insertBefore: (child: unknown, ref: unknown) => unknown;
@@ -723,6 +728,18 @@ describe("<ShadowBackground />", () => {
           this.ownerDocument = globalThis.document;
           this.style = {};
           this.attributes = {};
+        }
+        get src() {
+          return this.attributes["src"] || "";
+        }
+        set src(val: string) {
+          this.attributes["src"] = String(val);
+        }
+        get className() {
+          return this.attributes["class"] || "";
+        }
+        set className(val: string) {
+          this.attributes["class"] = String(val);
         }
         appendChild(child: unknown) {
           this.childNodes.push(child);
@@ -1340,6 +1357,336 @@ describe("<ShadowBackground />", () => {
       const branchProps = branchEl.props as unknown as ProceduralBranchProps;
       expect(branchProps.penumbraRadius).toBe(Math.round(16 * 1.35)); // 22px
       expect(branchProps.windStrength).toBeCloseTo(0.8 + Math.abs(-28.4) * 0.02, 2);
+    });
+
+    describe("8. Decoupled Static Base Plate, Bleed Overscan & Opt-in Motion (ADR-0002)", () => {
+      it("keeps Base Plate image untransformed while applying 3D perspective and 5% overscan to dynamic shadow layer by default", async () => {
+        let idleCallback: (() => void) | null = null;
+        (window as unknown as { requestIdleCallback: (cb: () => void) => number }).requestIdleCallback = vi.fn(
+          (cb: () => void) => {
+            idleCallback = cb;
+            return 1;
+          }
+        );
+
+        const { createRoot } = await import("react-dom/client");
+        const rootNode = new mockElementClass(1, "DIV");
+        const root = createRoot(rootNode as unknown as HTMLElement);
+
+        React.act(() => {
+          root.render(
+            <ShadowBackground
+              basePlate="/images/base.svg"
+              caster={{ type: "branch" }}
+              degradation="force-dynamic"
+              motion="smooth"
+            />
+          );
+        });
+
+        // Hydrate dynamic tier
+        React.act(() => {
+          if (idleCallback) (idleCallback as () => void)();
+        });
+
+        const stageDiv = rootNode.childNodes[0] as InstanceType<typeof mockElementClass>;
+        const bgContainer = stageDiv.childNodes[0] as InstanceType<typeof mockElementClass>;
+        const basePlateImg = bgContainer.childNodes[0] as InstanceType<typeof mockElementClass>;
+        const renderLayer = bgContainer.childNodes[1] as InstanceType<typeof mockElementClass>;
+
+        // Root data-base-plate-motion is false by default
+        expect(stageDiv.getAttribute("data-base-plate-motion")).toBe("false");
+
+        // Background container wrapper has no transform
+        expect(bgContainer.style.transform).toBeUndefined();
+
+        // Base Plate image DOM element has no CSS transform applied (untransformed DOM base plate)
+        expect(basePlateImg.style.transform).toBeUndefined();
+
+        // Dynamic shadow layer receives 3D perspective transform
+        expect(renderLayer).toBeDefined();
+        expect(renderLayer.style.transform).toBe("perspective(1000px) rotateX(0deg) rotateY(0deg)");
+
+        // Dynamic shadow layer has multiply blend mode
+        expect(renderLayer.style.mixBlendMode).toBe("multiply");
+
+        // Dynamic shadow layer has 5% bleed overscan classes (inset-[-5%] w-[110%] h-[110%])
+        const shadowClass = renderLayer.getAttribute("class") || (renderLayer as { className?: string }).className || "";
+        expect(shadowClass).toContain("inset-[-5%]");
+        expect(shadowClass).toContain("w-[110%]");
+        expect(shadowClass).toContain("h-[110%]");
+
+        React.act(() => {
+          root.unmount();
+        });
+      });
+
+      it("applies 3D perspective transform to background container when basePlateMotion is true, leaving shadow layer untransformed", async () => {
+        let idleCallback: (() => void) | null = null;
+        (window as unknown as { requestIdleCallback: (cb: () => void) => number }).requestIdleCallback = vi.fn(
+          (cb: () => void) => {
+            idleCallback = cb;
+            return 1;
+          }
+        );
+
+        const { createRoot } = await import("react-dom/client");
+        const rootNode = new mockElementClass(1, "DIV");
+        const root = createRoot(rootNode as unknown as HTMLElement);
+
+        React.act(() => {
+          root.render(
+            <ShadowBackground
+              basePlate="/images/base.svg"
+              caster={{ type: "branch" }}
+              degradation="force-dynamic"
+              motion="smooth"
+              basePlateMotion={true}
+            />
+          );
+        });
+
+        // Hydrate dynamic tier
+        React.act(() => {
+          if (idleCallback) (idleCallback as () => void)();
+        });
+
+        const stageDiv = rootNode.childNodes[0] as InstanceType<typeof mockElementClass>;
+        const bgContainer = stageDiv.childNodes[0] as InstanceType<typeof mockElementClass>;
+        const renderLayer = bgContainer.childNodes[1] as InstanceType<typeof mockElementClass>;
+
+        // Root data-base-plate-motion reflects true
+        expect(stageDiv.getAttribute("data-base-plate-motion")).toBe("true");
+
+        // Background container wrapper receives 3D perspective transform and spring translation
+        expect(bgContainer.style.transform).toBe("perspective(1000px) rotateX(0deg) rotateY(0deg) translate3d(0px, 0px, 0)");
+
+        // Dynamic shadow layer does not have duplicate transform applied
+        expect(renderLayer.style.transform).toBeUndefined();
+
+        // Dynamic shadow layer still has 5% bleed overscan
+        const shadowClass = renderLayer.getAttribute("class") || (renderLayer as { className?: string }).className || "";
+        expect(shadowClass).toContain("inset-[-5%]");
+        expect(shadowClass).toContain("w-[110%]");
+        expect(shadowClass).toContain("h-[110%]");
+
+        React.act(() => {
+          root.unmount();
+        });
+      });
+
+      it("forwards shadowColor prop to all engines in resolveShadowEngine and defaults to #000000", () => {
+        const customColor = "#1a120b";
+
+        // 1. WebGlShadowEngine
+        const webglEl = resolveShadowEngine({
+          caster: { type: "image", src: "/caster.png" },
+          basePlate: "/base.jpg",
+          shadowColor: customColor,
+          useCanvasFallback: false,
+        });
+        const webglChild = (webglEl.props as unknown as { children: React.ReactElement }).children;
+        const webglProps = webglChild.props as unknown as WebGlShadowEngineProps;
+        expect(webglProps.shadowColor).toBe(customColor);
+
+        // WebGL default shadowColor
+        const webglDefaultEl = resolveShadowEngine({
+          caster: { type: "image", src: "/caster.png" },
+          basePlate: "/base.jpg",
+          useCanvasFallback: false,
+        });
+        const webglDefaultChild = (webglDefaultEl.props as unknown as { children: React.ReactElement }).children;
+        expect((webglDefaultChild.props as unknown as WebGlShadowEngineProps).shadowColor).toBe("#000000");
+
+        // 2. Canvas2dShadowEngine fallback
+        const canvasEl = resolveShadowEngine({
+          caster: { type: "image", src: "/caster.png" },
+          basePlate: "/base.jpg",
+          shadowColor: customColor,
+          useCanvasFallback: true,
+        });
+        const canvasProps = canvasEl.props as unknown as ShadowEngineProps;
+        expect(canvasProps.shadowColor).toBe(customColor);
+
+        // 3. ProceduralKomorebiEngine
+        const komorebiEl = resolveShadowEngine({
+          caster: { type: "komorebi" },
+          basePlate: "/base.jpg",
+          shadowColor: customColor,
+        });
+        const komorebiProps = komorebiEl.props as unknown as ProceduralKomorebiProps;
+        expect(komorebiProps.shadowColor).toBe(customColor);
+
+        // 4. ProceduralBranchEngine
+        const branchEl = resolveShadowEngine({
+          caster: { type: "branch" },
+          basePlate: "/base.jpg",
+          shadowColor: customColor,
+        });
+        const branchProps = branchEl.props as unknown as ProceduralBranchProps;
+        expect(branchProps.shadowColor).toBe(customColor);
+      });
+
+      it("supports zero-base VRAM mode by omitting basePlate in resolveShadowEngine", () => {
+        // 1. WebGlShadowEngine receives undefined baseImage
+        const webglEl = resolveShadowEngine({
+          caster: { type: "image", src: "/caster.png" },
+          useCanvasFallback: false,
+        });
+        const webglChild = (webglEl.props as unknown as { children: React.ReactElement }).children;
+        expect((webglChild.props as unknown as WebGlShadowEngineProps).baseImage).toBeUndefined();
+
+        // 2. Canvas2dShadowEngine receives undefined baseImage
+        const canvasEl = resolveShadowEngine({
+          caster: { type: "image", src: "/caster.png" },
+          useCanvasFallback: true,
+        });
+        expect((canvasEl.props as unknown as ShadowEngineProps).baseImage).toBeUndefined();
+
+        // 3. ProceduralKomorebiEngine receives undefined basePlate
+        const komorebiEl = resolveShadowEngine({
+          caster: { type: "komorebi" },
+        });
+        expect((komorebiEl.props as unknown as ProceduralKomorebiProps).basePlate).toBeUndefined();
+
+        // 4. ProceduralBranchEngine receives undefined basePlate
+        const branchEl = resolveShadowEngine({
+          caster: { type: "branch" },
+        });
+        expect((branchEl.props as unknown as ProceduralBranchProps).basePlate).toBeUndefined();
+      });
+
+      it("performs true poster-to-BasePlate cross-fade upon dynamic hydration to prevent double shadows", async () => {
+        // SSR: renderToString renders both Base Plate and distinct poster on top with opacity-100
+        const ssrHtmlWithPoster = renderToString(
+          <ShadowBackground
+            basePlate="/images/base-clean.svg"
+            poster="/images/poster-baked.webp"
+            caster={{ type: "branch" }}
+          />
+        );
+        expect(ssrHtmlWithPoster).toContain("poster-baked.webp");
+        expect(ssrHtmlWithPoster).toContain("base-clean.svg");
+        expect(ssrHtmlWithPoster).toContain("opacity-100");
+
+        // SSR: renderToString renders single Base Plate when poster is omitted
+        const ssrHtmlWithoutPoster = renderToString(
+          <ShadowBackground
+            basePlate="/images/base-clean.svg"
+            caster={{ type: "branch" }}
+          />
+        );
+        expect(ssrHtmlWithoutPoster).toContain("base-clean.svg");
+        expect(ssrHtmlWithoutPoster).not.toContain("poster-baked.webp");
+
+        // Client: createRoot dynamic hydration lifecycle
+        let idleCallback: (() => void) | null = null;
+        (window as unknown as { requestIdleCallback: (cb: () => void) => number }).requestIdleCallback = vi.fn(
+          (cb: () => void) => {
+            idleCallback = cb;
+            return 1;
+          }
+        );
+
+        const { createRoot } = await import("react-dom/client");
+        const rootNode = new mockElementClass(1, "DIV");
+        const root = createRoot(rootNode as unknown as HTMLElement);
+
+        React.act(() => {
+          root.render(
+            <ShadowBackground
+              basePlate="/images/base-clean.svg"
+              poster="/images/poster-baked.webp"
+              caster={{ type: "branch" }}
+              degradation="force-dynamic"
+            />
+          );
+        });
+
+        const stageDiv = rootNode.childNodes[0] as InstanceType<typeof mockElementClass>;
+        const bgContainer = stageDiv.childNodes[0] as InstanceType<typeof mockElementClass>;
+        const basePlateImg = bgContainer.childNodes[0] as InstanceType<typeof mockElementClass>;
+        const posterImg = bgContainer.childNodes[1] as InstanceType<typeof mockElementClass>;
+
+        // Before dynamic activation: basePlate is at bottom, poster is on top with opacity-100
+        const initialBaseSrc = basePlateImg.getAttribute("src") || (basePlateImg as { src?: string }).src || "";
+        expect(initialBaseSrc).toContain("base-clean.svg");
+        const initialPosterSrc = posterImg.getAttribute("src") || (posterImg as { src?: string }).src || "";
+        expect(initialPosterSrc).toContain("poster-baked.webp");
+        const initialPosterClass = posterImg.getAttribute("class") || (posterImg as { className?: string }).className || "";
+        expect(initialPosterClass).toContain("opacity-100");
+        expect(initialPosterClass).not.toContain("opacity-0");
+        // Dynamic shadow canvas is not yet mounted (child 2 is undefined)
+        expect(bgContainer.childNodes[2]).toBeUndefined();
+
+        // Hydrate dynamic tier
+        React.act(() => {
+          if (idleCallback) (idleCallback as () => void)();
+        });
+
+        // After dynamic activation: poster transitions to opacity-0 pointer-events-none
+        const hydratedPosterClass = posterImg.getAttribute("class") || (posterImg as { className?: string }).className || "";
+        expect(hydratedPosterClass).toContain("opacity-0");
+        expect(hydratedPosterClass).toContain("pointer-events-none");
+        // Clean base plate remains at the bottom
+        const hydratedBaseSrc = basePlateImg.getAttribute("src") || (basePlateImg as { src?: string }).src || "";
+        expect(hydratedBaseSrc).toContain("base-clean.svg");
+        // Dynamic shadow canvas is now mounted as child 2
+        expect(bgContainer.childNodes[2]).toBeDefined();
+
+        React.act(() => {
+          root.unmount();
+        });
+      });
+
+      it("renders only a single Base Plate image when poster is omitted or identical to basePlate", () => {
+        const identicalPosterHtml = renderToString(
+          <ShadowBackground
+            basePlate="/images/base-clean.svg"
+            poster="/images/base-clean.svg"
+            caster={{ type: "branch" }}
+          />
+        );
+        const omittedPosterHtml = renderToString(
+          <ShadowBackground
+            basePlate="/images/base-clean.svg"
+            caster={{ type: "branch" }}
+          />
+        );
+        expect(identicalPosterHtml).toBe(omittedPosterHtml);
+      });
+
+      it("computes 3D perspective transform with and without translation via getPerspectiveTransform", () => {
+        const tiltOnly = getPerspectiveTransform(5, -10);
+        expect(tiltOnly).toBe("perspective(1000px) rotateX(-10deg) rotateY(5deg)");
+
+        const tiltAndTranslate = getPerspectiveTransform(5, -10, 12, -24);
+        expect(tiltAndTranslate).toBe("perspective(1000px) rotateX(-10deg) rotateY(5deg) translate3d(12px, -24px, 0)");
+      });
+
+      it("constructs Canvas2dShadowEngine fallback element using Canvas2dFallbackOptions and penumbra", () => {
+        const fallbackOptions: Canvas2dFallbackOptions = {
+          basePlate: "/custom-base.jpg",
+          casterSrc: "/custom-caster.svg",
+          offsetX: 15,
+          offsetY: 25,
+          penumbra: 32,
+          shadowOpacity: 0.75,
+          ambientScale: 1.2,
+          shadowColor: "#112233",
+        };
+        const fallback = renderCanvas2dFallback(fallbackOptions);
+
+        const props = fallback.props as unknown as ShadowEngineProps;
+        expect(props.baseImage).toBe("/custom-base.jpg");
+        expect(props.casterImage).toBe("/custom-caster.svg");
+        expect(props.offsetX).toBe(15);
+        expect(props.offsetY).toBe(25);
+        expect(props.blurRadius).toBe(32);
+        expect(props.shadowOpacity).toBe(0.75);
+        expect(props.ambientScale).toBe(1.2);
+        expect(props.shadowColor).toBe("#112233");
+      });
     });
   });
 });
