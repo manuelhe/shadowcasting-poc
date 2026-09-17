@@ -20,10 +20,21 @@ vi.mock("@/hooks/useMotionController", async () => {
   return await vi.importActual("./hooks/useMotionController");
 });
 
-import { ShadowBackground, ShadowBackgroundProps } from "./components/ShadowBackground";
+import {
+  ShadowBackground,
+  ShadowBackgroundProps,
+  ShadowCasterConfig,
+  DegradationTier,
+  MotionPreset,
+  MotionConfig,
+} from "./components/ShadowBackground";
+import { SPRING_PRESETS, SpringConfig } from "./lib/motion/spring";
+import { useMotionController } from "./hooks/useMotionController";
+import { detectDeviceCapabilities } from "./lib/device-capabilities";
 
 const REPO_ROOT = path.resolve(__dirname, "..");
 const README_PATH = path.join(REPO_ROOT, "README.md");
+const API_REF_PATH = path.join(REPO_ROOT, "docs/guides/api-reference.md");
 
 describe("Documentation Integrity Suite (src/docs.test.ts)", () => {
   it("root README.md exists and is non-empty (>500 bytes)", () => {
@@ -247,5 +258,288 @@ describe("Documentation Integrity Suite (src/docs.test.ts)", () => {
     expect(readmeContent).toContain("pnpm build");
     expect(readmeContent).toContain("pnpm test");
     expect(readmeContent).toContain("pnpm lint");
+  });
+});
+
+
+describe("Comprehensive API Reference Integrity & Contract Parity (docs/guides/api-reference.md - Ticket #30)", () => {
+  it("docs/guides/api-reference.md exists and is non-empty (>500 bytes)", () => {
+    expect(fs.existsSync(API_REF_PATH)).toBe(true);
+    const stats = fs.statSync(API_REF_PATH);
+    expect(stats.size).toBeGreaterThan(500);
+  });
+
+  it("markdown links in api-reference.md resolve to valid files on disk (zero broken links)", () => {
+    const apiRefContent = fs.readFileSync(API_REF_PATH, "utf-8");
+
+    const markdownLinkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
+    const matches = [...apiRefContent.matchAll(markdownLinkRegex)];
+
+    expect(matches.length).toBeGreaterThan(0);
+
+    const checkedLinks: string[] = [];
+    const guideDir = path.dirname(API_REF_PATH);
+
+    for (const match of matches) {
+      const linkTarget = match[2].trim();
+
+      // Skip external web links, routes, or fragment anchors
+      if (
+        linkTarget.startsWith("http://") ||
+        linkTarget.startsWith("https://") ||
+        linkTarget.startsWith("#")
+      ) {
+        continue;
+      }
+
+      // Route links (starting with /)
+      if (linkTarget.startsWith("/")) {
+        continue;
+      }
+
+      // Skip sibling guide links that may be authored concurrently in tickets #31-#33 if they do not exist
+      if (linkTarget.endsWith(".md") && !linkTarget.includes("/") && !fs.existsSync(path.resolve(guideDir, linkTarget))) {
+        continue;
+      }
+
+      const cleanPath = linkTarget.split("#")[0];
+      const absoluteTarget = path.resolve(guideDir, cleanPath);
+
+      expect(
+        fs.existsSync(absoluteTarget),
+        `Broken link found in docs/guides/api-reference.md: target "${linkTarget}" does not exist at "${absoluteTarget}"`
+      ).toBe(true);
+
+      checkedLinks.push(linkTarget);
+    }
+
+    // Verify key cross-reference files were found and verified
+    expect(checkedLinks).toContain("../../README.md");
+    expect(checkedLinks).toContain("../../CONTEXT.md");
+    expect(checkedLinks).toContain("../adr/0001-shadowcasting-component-architecture.md");
+    expect(checkedLinks).toContain("../adr/0002-decoupled-transparent-shadow-layer.md");
+  });
+
+  it("asserts all documented <ShadowBackground /> prop names match actual ShadowBackgroundProps interface", () => {
+    const apiRefContent = fs.readFileSync(API_REF_PATH, "utf-8");
+
+    // All documented props from Ticket #30 requirements
+    const documentedProps = [
+      "basePlate",
+      "poster",
+      "caster",
+      "tier",
+      "motion",
+      "penumbra",
+      "offset",
+      "shadowColor",
+      "shadowOpacity",
+      "virtualLight",
+      "basePlateMotion",
+      "contactHardening",
+      "lightDirection",
+      "fit",
+      "blendMode",
+      "onTierChange",
+      "onRest",
+      "onWake",
+      "className",
+      "children",
+    ];
+
+    for (const propName of documentedProps) {
+      expect(
+        apiRefContent,
+        `api-reference.md must document prop "${propName}" in the props interface table`
+      ).toContain(`\`${propName}\``);
+    }
+
+    // Verify TypeScript contract parity by instantiating component with all documented props
+    const fullProps: ShadowBackgroundProps = {
+      basePlate: "/images/wood-background.webp",
+      poster: "/images/wood-background.webp",
+      caster: { type: "image", src: "/images/shadow-1.webp" },
+      tier: "auto",
+      motion: "smooth",
+      penumbra: 24,
+      offset: { x: 0, y: 0 },
+      shadowColor: "#000000",
+      shadowOpacity: 0.65,
+      basePlateMotion: false,
+      contactHardening: true,
+      lightDirection: [20, 25, 1],
+      fit: "cover",
+      blendMode: "multiply",
+      onTierChange: () => {},
+      onRest: () => {},
+      onWake: () => {},
+      className: "relative h-96 w-full",
+    };
+
+    const element = React.createElement(ShadowBackground, fullProps, "Test Children");
+    expect(element).toBeDefined();
+    expect(element.props.basePlate).toBe("/images/wood-background.webp");
+    expect(element.props.basePlateMotion).toBe(false);
+    expect(element.props.contactHardening).toBe(true);
+  });
+
+  it("asserts documented MotionPreset values match actual MotionPreset union and SPRING_PRESETS exports", () => {
+    const apiRefContent = fs.readFileSync(API_REF_PATH, "utf-8");
+
+    const expectedPresets: MotionPreset[] = ["snappy", "smooth", "inertial", "bouncy", "none"];
+
+    for (const preset of expectedPresets) {
+      expect(
+        apiRefContent,
+        `api-reference.md must document MotionPreset "${preset}"`
+      ).toContain(`"${preset}"`);
+    }
+
+    // Verify SPRING_PRESETS keys and calibrated values match documentation
+    const activePresets: Array<"snappy" | "smooth" | "inertial" | "bouncy"> = [
+      "snappy",
+      "smooth",
+      "inertial",
+      "bouncy",
+    ];
+
+    for (const preset of activePresets) {
+      const config = SPRING_PRESETS[preset];
+      expect(config).toBeDefined();
+      expect(typeof config.stiffness).toBe("number");
+      expect(typeof config.damping).toBe("number");
+      expect(typeof config.mass).toBe("number");
+
+      // Verify documented exact values in the calibrated physics table
+      expect(apiRefContent).toContain(`\`${config.stiffness}\``);
+      expect(apiRefContent).toContain(`\`${config.damping}\``);
+      expect(apiRefContent).toContain(`\`${config.mass.toFixed(1)}\``);
+    }
+
+    // Verify MotionConfig and SpringConfig type contract parity
+    const testSpringConfig: SpringConfig = {
+      stiffness: 160,
+      damping: 20,
+      mass: 1.0,
+    };
+    expect(testSpringConfig.stiffness).toBe(160);
+
+    const testMotionConfig: MotionConfig = {
+      preset: "smooth",
+      stiffness: testSpringConfig.stiffness,
+      damping: testSpringConfig.damping,
+      mass: testSpringConfig.mass,
+      ambient: true,
+      scrollInfluence: 25,
+      maxDisplacementPx: 45,
+    };
+    expect(testMotionConfig.preset).toBe("smooth");
+
+    // Assert exact calibrated constants
+    expect(SPRING_PRESETS.snappy).toEqual({ stiffness: 280, damping: 30, mass: 1.0 });
+    expect(SPRING_PRESETS.smooth).toEqual({ stiffness: 160, damping: 20, mass: 1.0 });
+    expect(SPRING_PRESETS.inertial).toEqual({ stiffness: 70, damping: 14, mass: 2.2 });
+    expect(SPRING_PRESETS.bouncy).toEqual({ stiffness: 180, damping: 11, mass: 1.0 });
+  });
+
+  it("asserts documented DegradationTier values match actual DegradationTier type exports", () => {
+    const apiRefContent = fs.readFileSync(API_REF_PATH, "utf-8");
+
+    const expectedTiers: DegradationTier[] = [
+      "auto",
+      "static-poster",
+      "low-dynamic",
+      "full-dynamic",
+      "force-static",
+      "force-dynamic",
+    ];
+
+    for (const tier of expectedTiers) {
+      expect(
+        apiRefContent,
+        `api-reference.md must document DegradationTier "${tier}"`
+      ).toContain(`"${tier}"`);
+    }
+
+    expect(expectedTiers.length).toBe(6);
+  });
+
+  it("asserts documented ShadowCasterConfig variants match discriminated union in component", () => {
+    const apiRefContent = fs.readFileSync(API_REF_PATH, "utf-8");
+
+    // All 3 primary caster discriminator types
+    expect(apiRefContent).toContain('"image"');
+    expect(apiRefContent).toContain('"komorebi"');
+    expect(apiRefContent).toContain('"branch"');
+
+    // Verify TypeScript compatibility
+    const imageCaster: ShadowCasterConfig = { type: "image", src: "/images/shadow-1.webp", opacity: 0.8 };
+    const komorebiCaster: ShadowCasterConfig = { type: "komorebi", density: 1.2, contrast: 1.4, scale: 3.5, speed: 0.5 };
+    const branchCaster: ShadowCasterConfig = { type: "branch", depth: 4, leafDensity: 5, swaySpeed: 0.7 };
+
+    expect(imageCaster.type).toBe("image");
+    expect(komorebiCaster.type).toBe("komorebi");
+    expect(branchCaster.type).toBe("branch");
+  });
+
+  it("asserts custom hook signatures and hardware capability helpers are documented", () => {
+    const apiRefContent = fs.readFileSync(API_REF_PATH, "utf-8");
+
+    // Hook exports
+    expect(typeof useMotionController).toBe("function");
+    expect(typeof detectDeviceCapabilities).toBe("function");
+
+    // useMotionController documentation
+    expect(apiRefContent).toContain("useMotionController");
+    expect(apiRefContent).toContain("UseMotionControllerOptions");
+    expect(apiRefContent).toContain("MotionOutput");
+    expect(apiRefContent).toContain("onPointerMove");
+    expect(apiRefContent).toContain("onPointerLeave");
+    expect(apiRefContent).toContain("onTouchStart");
+    expect(apiRefContent).toContain("onTouchMove");
+    expect(apiRefContent).toContain("onTouchEnd");
+    expect(apiRefContent).toContain("onTouchCancel");
+
+    // useDeviceCapabilities documentation
+    expect(apiRefContent).toContain("useDeviceCapabilities");
+    expect(apiRefContent).toContain("DeviceCapabilities");
+    expect(apiRefContent).toContain("prefersReducedMotion");
+    expect(apiRefContent).toContain("saveData");
+    expect(apiRefContent).toContain("deviceMemoryGb");
+    expect(apiRefContent).toContain("cores");
+    expect(apiRefContent).toContain("isCoreClamped");
+    expect(apiRefContent).toContain("hasWebGL2");
+    expect(apiRefContent).toContain("recommendedTier");
+  });
+
+  it("asserts ADR-0001, ADR-0002 architectural constraints and CONTEXT.md terminology rules", () => {
+    const apiRefContent = fs.readFileSync(API_REF_PATH, "utf-8");
+
+    // ADR citations
+    expect(apiRefContent).toContain("ADR-0001");
+    expect(apiRefContent).toContain("ADR-0002");
+    expect(apiRefContent).toContain("Pillar 5");
+    expect(apiRefContent).toContain("inset-[-5%]");
+
+    // Canonical terms from CONTEXT.md
+    expect(apiRefContent).toContain("Base Plate");
+    expect(apiRefContent).toContain("Base Plate Motion");
+    expect(apiRefContent).toContain("Shadow Caster");
+    expect(apiRefContent).toContain("Shadow Synthesis Engine");
+    expect(apiRefContent).toContain("Penumbra");
+    expect(apiRefContent).toContain("Contact Hardening");
+    expect(apiRefContent).toContain("Static Poster Fallback");
+    expect(apiRefContent).toContain("Degradation Tier");
+    expect(apiRefContent).toContain("Ambient Motion");
+    expect(apiRefContent).toContain("Interactive Motion");
+
+    // Forbidden terminology check in non-glossary body (ensure they are only present in the avoidance table)
+    const glossaryIndex = apiRefContent.indexOf("## Domain Glossary & Terminology Rules");
+    expect(glossaryIndex).toBeGreaterThan(0);
+
+    const bodyBeforeGlossary = apiRefContent.slice(0, glossaryIndex).toLowerCase();
+    expect(bodyBeforeGlossary).not.toContain("occluder");
+    expect(bodyBeforeGlossary).not.toContain("canvas floor");
+    expect(bodyBeforeGlossary).not.toContain("event animation");
   });
 });
