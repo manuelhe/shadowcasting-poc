@@ -3,6 +3,7 @@
 import React, { useRef, useEffect } from "react";
 import { createKomorebiField } from "@/lib/procedural/komorebi";
 import { parseColorToRgb } from "./color-utils";
+import { uploadTextureImage } from "./texture-utils";
 
 export interface ProceduralKomorebiProps {
   basePlate?: string;
@@ -264,7 +265,7 @@ export function ProceduralKomorebiEngine({
         } else {
           gl.bindTexture(gl.TEXTURE_2D, baseTexRef.current);
         }
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
+        uploadTextureImage(gl, img);
       }
     };
   }, [basePlate]);
