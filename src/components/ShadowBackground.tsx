@@ -34,7 +34,9 @@ export type DegradationTier =
 /**
  * Calibrated spring motion behavior presets.
  */
-export type MotionPreset = "smooth" | "snappy" | "inertial" | "bouncy" | "none";
+export type ShadowCasterInput = ShadowCasterConfig | string;
+
+export type MotionPreset = "smooth" | "snappy" | "inertial" | "bouncy" | "energetic" | "none";
 
 /**
  * Spring physics, parallax, and ambient motion configuration for interactive shadowcasting.
@@ -61,7 +63,7 @@ export interface ShadowBackgroundProps
   extends React.HTMLAttributes<HTMLDivElement> {
   basePlate: string;
   poster?: string;
-  caster: ShadowCasterConfig;
+  caster: ShadowCasterInput;
   tier?: DegradationTier;
   degradation?: DegradationTier;
   penumbra?: number;
@@ -277,7 +279,7 @@ export function getPerspectiveTransform(
  * Parameters for resolving the dynamic shadow synthesis engine.
  */
 export interface ResolveEngineOptions {
-  caster: ShadowCasterConfig;
+  caster: ShadowCasterInput;
   basePlate?: string;
   shadowColor?: string;
   penumbra?: number;
@@ -305,6 +307,8 @@ export function resolveShadowEngine({
   onWebGlError,
   motionOutput,
 }: ResolveEngineOptions): React.ReactElement<Record<string, unknown>> {
+  const resolvedCaster: ShadowCasterConfig =
+    typeof caster === "string" ? { type: "image", src: caster } : caster;
   const isDynamicMotion = motionOutput != null;
   const offsetX = isDynamicMotion ? motionOutput.shadowOffsetX : lightDirection[0];
   const offsetY = isDynamicMotion ? motionOutput.shadowOffsetY : lightDirection[1];
@@ -318,12 +322,12 @@ export function resolveShadowEngine({
     ? 0.8 + Math.abs(motionOutput.shadowOffsetX) * 0.02
     : 0.8;
 
-  switch (caster.type) {
+  switch (resolvedCaster.type) {
     case "image": {
-      const effectiveOpacity = caster.opacity ?? shadowOpacity;
+      const effectiveOpacity = resolvedCaster.opacity ?? shadowOpacity;
       const canvasFallback = renderCanvas2dFallback({
         basePlate,
-        casterSrc: caster.src,
+        casterSrc: resolvedCaster.src,
         offsetX,
         offsetY,
         penumbra: effectivePenumbra,
@@ -335,6 +339,7 @@ export function resolveShadowEngine({
       if (useCanvasFallback) {
         return canvasFallback;
       }
+
       return (
         <EngineErrorBoundary
           onError={onWebGlError}
@@ -342,7 +347,7 @@ export function resolveShadowEngine({
         >
           <WebGlShadowEngine
             baseImage={basePlate}
-            casterImage={caster.src}
+            casterImage={resolvedCaster.src}
             offsetX={offsetX}
             offsetY={offsetY}
             blurRadius={effectivePenumbra}
@@ -360,10 +365,10 @@ export function resolveShadowEngine({
         <ProceduralKomorebiEngine
           basePlate={basePlate}
           shadowColor={shadowColor}
-          shadowOpacity={shadowOpacity * (caster.density ?? 1.0)}
-          scale={caster.scale ?? 3.5}
-          speed={caster.speed ?? 0.5}
-          contrast={caster.contrast ?? 1.2}
+          shadowOpacity={shadowOpacity * (resolvedCaster.density ?? 1.0)}
+          scale={resolvedCaster.scale ?? 3.5}
+          speed={resolvedCaster.speed ?? 0.5}
+          contrast={resolvedCaster.contrast ?? 1.2}
           windAngle={windAngle}
           mode={useCanvasFallback ? "cpu" : "gpu"}
         />
@@ -378,9 +383,9 @@ export function resolveShadowEngine({
           shadowOpacity={shadowOpacity}
           penumbraRadius={effectivePenumbra}
           windStrength={windStrength}
-          swaySpeed={caster.swaySpeed ?? 0.7}
-          branchDepth={caster.depth ?? 4}
-          leafDensity={caster.leafDensity ?? 5}
+          swaySpeed={resolvedCaster.swaySpeed ?? 0.7}
+          branchDepth={resolvedCaster.depth ?? 4}
+          leafDensity={resolvedCaster.leafDensity ?? 5}
         />
       );
     }
