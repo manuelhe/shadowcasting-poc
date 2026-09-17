@@ -413,4 +413,175 @@ describe("Documentation Integrity Suite (src/docs.test.ts)", () => {
       expect(lowercase).not.toContain("event animation");
     });
   });
+
+  describe("Technical Scenario Guides (Ticket #33)", () => {
+    const COMPANION_GUIDES = new Set([
+      "01-editorial-hero.md",
+      "02-scroll-parallax.md",
+      "03-procedural-shadows.md",
+      "04-performance-and-degradation.md",
+      "05-custom-physics-and-lighting.md",
+      "api-reference.md",
+    ]);
+
+    function assertGuideIntegrity(
+      relativePath: string,
+      expectedTitle: string,
+      requiredPhrases: string[]
+    ) {
+      const guidePath = path.join(REPO_ROOT, relativePath);
+      expect(fs.existsSync(guidePath), `Guide file must exist at ${guidePath}`).toBe(true);
+
+      const stats = fs.statSync(guidePath);
+      expect(stats.size, `${relativePath} must be non-empty (>500 bytes)`).toBeGreaterThan(500);
+
+      const content = fs.readFileSync(guidePath, "utf-8");
+      expect(content, `${relativePath} must contain title "${expectedTitle}"`).toContain(
+        expectedTitle
+      );
+
+      for (const phrase of requiredPhrases) {
+        expect(content, `${relativePath} must contain section/phrase "${phrase}"`).toContain(
+          phrase
+        );
+      }
+
+      // Canonical domain terminology checks from CONTEXT.md
+      expect(content).toContain("Base Plate");
+      expect(content).toContain("Shadow Caster");
+      expect(content).toContain("Penumbra");
+      expect(content).toContain("Contact Hardening");
+
+      // Forbidden terms must not appear as architectural concepts
+      const lowercase = content.toLowerCase();
+      expect(lowercase).not.toContain("occluder");
+      expect(lowercase).not.toContain("mask image");
+      expect(lowercase).not.toContain("canvas floor");
+      expect(lowercase).not.toContain("event animation");
+
+      // Verify markdown links
+      const guideDir = path.dirname(guidePath);
+      const markdownLinkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
+      const matches = [...content.matchAll(markdownLinkRegex)];
+      expect(matches.length, `${relativePath} should contain markdown links`).toBeGreaterThan(0);
+
+      for (const match of matches) {
+        const linkTarget = match[2].trim();
+
+        if (
+          linkTarget.startsWith("http://") ||
+          linkTarget.startsWith("https://") ||
+          linkTarget.startsWith("#")
+        ) {
+          continue;
+        }
+
+        if (linkTarget.startsWith("/")) {
+          // Route link: verify corresponding page exists
+          let relativePagePath: string;
+          if (linkTarget === "/") {
+            relativePagePath = "src/app/page.tsx";
+          } else {
+            relativePagePath = path.join("src/app", linkTarget, "page.tsx");
+          }
+          const absolutePagePath = path.resolve(REPO_ROOT, relativePagePath);
+          expect(
+            fs.existsSync(absolutePagePath),
+            `Route link "${linkTarget}" in ${relativePath} does not have a page at "${absolutePagePath}"`
+          ).toBe(true);
+          continue;
+        }
+
+        // Companion guide link within docs/guides/
+        if (COMPANION_GUIDES.has(linkTarget)) {
+          const companionPath = path.resolve(guideDir, linkTarget);
+          if (fs.existsSync(companionPath)) {
+            expect(fs.statSync(companionPath).isFile()).toBe(true);
+          }
+          continue;
+        }
+
+        // Relative file link
+        const cleanPath = linkTarget.split("#")[0];
+        const absoluteTarget = path.resolve(guideDir, cleanPath);
+        expect(
+          fs.existsSync(absoluteTarget),
+          `Broken relative markdown link "${linkTarget}" in ${relativePath} does not exist at "${absoluteTarget}"`
+        ).toBe(true);
+      }
+
+      // Verify image asset references
+      const assetRegex = /\/images\/[a-zA-Z0-9_\-.]+\.(?:webp|png|svg|jpg|jpeg)/g;
+      const assetMatches = [...content.matchAll(assetRegex)];
+      const uniqueAssets = [...new Set(assetMatches.map((m) => m[0]))];
+      for (const assetPath of uniqueAssets) {
+        const absoluteAssetPath = path.join(REPO_ROOT, "public", assetPath);
+        expect(
+          fs.existsSync(absoluteAssetPath),
+          `Asset reference "${assetPath}" in ${relativePath} does not exist at "${absoluteAssetPath}"`
+        ).toBe(true);
+      }
+    }
+
+    it("verifies docs/guides/03-procedural-shadows.md exists and passes link and content integrity", () => {
+      assertGuideIntegrity(
+        "docs/guides/03-procedural-shadows.md",
+        "# Scenario Guide: Procedural Generative Shadows",
+        [
+          "Generative Komorebi Canopy Architecture",
+          "Simplex 2D Noise",
+          "Fractional Brownian Motion (fBm)",
+          "0 KB of texture memory",
+          "Parametric Botanical Branch Architecture",
+          "Poisson-Disk Leaf Cluster Dispersion",
+          "Hierarchical Harmonic Sway Animation",
+          "Linear Congruential Generator",
+          'type: "komorebi"',
+          'type: "branch"',
+        ]
+      );
+    });
+
+    it("verifies docs/guides/04-performance-and-degradation.md exists and passes link and content integrity", () => {
+      assertGuideIntegrity(
+        "docs/guides/04-performance-and-degradation.md",
+        "# Scenario Guide: Performance Tiering & Zero-LCP Handover",
+        [
+          "The 4-Tier Progressive Degradation Ladder",
+          "Tier 1: Full-Dynamic",
+          "Tier 2: Low-Dynamic",
+          "Tier 3: CSS Fallback",
+          "Tier 4: Static Poster",
+          "The Zero-LCP Handover Lifecycle",
+          "requestIdleCallback",
+          "300ms Cross-Fade Handover",
+          "prefers-reduced-motion",
+          "deviceMemory",
+          "hardwareConcurrency",
+          "CLS strictly 0.000",
+        ]
+      );
+    });
+
+    it("verifies docs/guides/05-custom-physics-and-lighting.md exists and passes link and content integrity", () => {
+      assertGuideIntegrity(
+        "docs/guides/05-custom-physics-and-lighting.md",
+        "# Scenario Guide: Custom Motion Physics & Virtual Lighting",
+        [
+          "Physical Foundations of Second-Order Spring Dynamics",
+          "Semi-Implicit Euler Integrator",
+          "Numerical Stability Safeguards",
+          "Calibrated Motion Presets",
+          "snappy",
+          "smooth",
+          "inertial",
+          "bouncy",
+          "Virtual Light Coordinates & Projection Mathematics",
+          "Poisson Contact Hardening Math",
+          "Decoupled vs. Coupled Base Plate Motion",
+          "basePlateMotion={true}",
+        ]
+      );
+    });
+  });
 });
