@@ -39,7 +39,7 @@ export type DegradationTier =
 /**
  * Calibrated spring motion behavior presets.
  */
-export type MotionPreset = "smooth" | "snappy" | "inertial" | "bouncy" | "none";
+export type MotionPreset = "smooth" | "snappy" | "inertial" | "bouncy" | "energetic" | "none";
 
 /**
  * Spring physics, parallax, and ambient motion configuration for interactive shadowcasting.
@@ -342,6 +342,7 @@ export function resolveShadowEngine({
       if (useCanvasFallback) {
         return canvasFallback;
       }
+
       return (
         <EngineErrorBoundary
           onError={onWebGlError}
