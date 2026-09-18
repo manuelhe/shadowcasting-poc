@@ -133,7 +133,7 @@ export function WebGlShadowEngine({
   contactPoint = DEFAULT_CONTACT_POINT,
   onFrameStats,
 }: WebGlShadowEngineProps) {
-  const [cpX, cpY] = contactPoint ?? DEFAULT_CONTACT_POINT;
+  const [contactPointX, contactPointY] = contactPoint ?? DEFAULT_CONTACT_POINT;
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const glRef = useRef<WebGLRenderingContext | null>(null);
   const programRef = useRef<WebGLProgram | null>(null);
@@ -377,7 +377,7 @@ export function WebGlShadowEngine({
           contactHardening ? 1.0 : 0.0
         );
         const contactPointLoc = gl.getUniformLocation(program, "u_contactPoint");
-        gl.uniform2f(contactPointLoc, cpX, cpY);
+        gl.uniform2f(contactPointLoc, contactPointX, contactPointY);
 
         gl.drawArrays(gl.TRIANGLES, 0, 6);
       }
@@ -397,8 +397,8 @@ export function WebGlShadowEngine({
     shadowColor,
     ambientScale,
     contactHardening,
-    cpX,
-    cpY,
+    contactPointX,
+    contactPointY,
     onFrameStats,
   ]);
 

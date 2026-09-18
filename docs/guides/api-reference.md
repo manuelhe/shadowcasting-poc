@@ -67,7 +67,7 @@ The `<ShadowBackground />` component extends `React.HTMLAttributes<HTMLDivElemen
 | `virtualLight` | `VirtualLightOptions` | `{ elevation: 1.0, angle: 45, distance: 1.0 }` | No | Coordinate options: `{ elevation?: number; angle?: number; distance?: number }`. Projected into dynamic directional light vector and penumbra dilation. |
 | `basePlateMotion` | `boolean` | `false` | No | Coupled motion toggle. When false (default), Base Plate is stationary ([ADR-0002](../adr/0002-decoupled-transparent-shadow-layer.md)). When true, Base Plate shifts with parallax. Default: `false`. |
 | `contactHardening` | `boolean` | `true` | No | Optical contact hardening toggle. When true, produces distance-proportional sharpness near contact surfaces and progressive softening at distance. Default: `true`. |
-| `contactPoint` | `ContactPoint` | `"top-left"` (or `[0.1, 0.1]`) | No | Anchor coordinate where the caster contacts the substrate plane. Accepts any of the 7 `ContactPointPreset` strings (e.g. `"top-left"`, `"bottom-center"`) or a custom normalized `[u, v]` tuple (e.g. `[0.2, 0.8]`). Resolves default to `[0.1, 0.1]`. |
+| `contactPoint` | `ContactPoint` | `"top-left"` (or `[0.1, 0.1]`) | No | Normalized UV Contact Point coordinate where the caster contacts the substrate plane. Accepts any of the 7 `ContactPointPreset` strings (e.g. `"top-left"`, `"bottom-center"`) or a custom normalized `[u, v]` tuple (e.g. `[0.2, 0.8]`). Resolves default to `[0.1, 0.1]`. |
 | `lightDirection` | `[number, number, number]` | `[20, 25, 1]` | No | Initial static directional light vector `[X, Y, Z]` when interactive motion is dormant. Default: `[20, 25, 1]`. |
 | `fit` | `"cover" \| "contain" \| "fill"` | `"cover"` | No | CSS object-fit mode applied to the Base Plate and poster images. Default: `"cover"`. |
 | `blendMode` | `"multiply" \| "normal"` | `"multiply"` | No | CSS `mix-blend-mode` applied to the decoupled transparent shadow layer. Default: `"multiply"`. |
@@ -280,7 +280,7 @@ export function resolveContactPoint(contactPoint?: ContactPoint): [number, numbe
 
 | Preset | Normalized UV `[u, v]` | Description & Recommended Use Case |
 | :--- | :--- | :--- |
-| `"top-left"` | `[0.1, 0.1]` | **Default anchor**. Caster originates from top-left (e.g. hanging overhead branches, downward botanical foliage). |
+| `"top-left"` | `[0.1, 0.1]` | **Default contact point**. Caster originates from top-left (e.g. hanging overhead branches, downward botanical foliage). |
 | `"top-center"` | `[0.5, 0.1]` | Central overhead light fixture, chandelier, or centered top canopy. |
 | `"top-right"` | `[0.9, 0.1]` | Overhead branch or awning originating from the top-right quadrant. |
 | `"center"` | `[0.5, 0.5]` | Central floating object, hovering emblem, or centered botanical arrangement with radial softening. |
@@ -325,7 +325,7 @@ Provide an exact normalized coordinate tuple for custom procedural or asymmetric
 ```tsx
 import { ShadowBackground } from "@/components/ShadowBackground";
 
-export function CustomAnchorScene() {
+export function CustomContactPointScene() {
   return (
     <ShadowBackground
       basePlate="/images/decayedpaint-background.webp"
@@ -340,7 +340,7 @@ export function CustomAnchorScene() {
       className="relative h-[640px] w-full"
     >
       <div className="relative z-10 p-8 text-white">
-        <h1 className="text-4xl font-bold">Custom Anchor Foliage</h1>
+        <h1 className="text-4xl font-bold">Custom Contact Point Foliage</h1>
       </div>
     </ShadowBackground>
   );

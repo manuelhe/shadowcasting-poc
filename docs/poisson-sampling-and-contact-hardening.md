@@ -11,7 +11,7 @@ A comprehensive guide explaining the engineering principles, optical physics, an
 1. [Executive Summary](#1-executive-summary)
 2. [Technical Deconstruction & Architecture](#2-technical-deconstruction--architecture)
    - [The Physical Optical Reality: Contact Hardening](#the-physical-optical-reality-contact-hardening)
-   - [Distance from Anchor: Virtual 3D Elevation](#distance-from-anchor-virtual-3d-elevation)
+   - [Distance from Contact Point: Virtual 3D Elevation](#distance-from-contact-point-virtual-3d-elevation)
    - [Kernel Radius Expansion: Variable Penumbra](#kernel-radius-expansion-variable-penumbra)
    - [12-Tap Golden-Spiral Poisson-Disk Sampling](#12-tap-golden-spiral-poisson-disk-sampling)
    - [The Complete Shader Pipeline](#the-complete-shader-pipeline)
@@ -80,11 +80,11 @@ In optical physics, light sources (such as the sun or ceiling luminaires) are ar
 
 When a **Shadow Caster** is close to a receiving surface, ray divergence is minimal, creating a crisp, high-contrast silhouette. As distance from the receiving surface increases, light rays wrap around the edges, widening the penumbra into a gentle, soft gradient. This phenomenon is known as **Contact Hardening**.
 
-### Distance from Anchor: Virtual 3D Elevation
+### Distance from Contact Point: Virtual 3D Elevation
 
 In our 2.5D architecture, we deliberately avoid loading multi-megabyte 3D polygon meshes with depth buffers. Instead, the **Shadow Caster** is represented as a lightweight alpha mask (such as [`public/images/grass.svg`](../public/images/grass.svg)).
 
-To simulate 3D elevation without a 3D geometry engine, the WebGL fragment shader evaluates distance from an **Anchor Point**—the physical coordinate where the caster contacts the substrate plane. This coordinate is dynamically supplied to the GPU via the `u_contactPoint` uniform (`vec2`), defaulting to `vec2(0.1, 0.1)` (the `"top-left"` preset) in UV texture space:
+To simulate 3D elevation without a 3D geometry engine, the WebGL fragment shader evaluates distance from a **Contact Point**—the physical coordinate where the caster contacts the substrate plane. This coordinate is dynamically supplied to the GPU via the `u_contactPoint` uniform (`vec2`), defaulting to `vec2(0.1, 0.1)` (the `"top-left"` preset) in UV texture space:
 
 $$\text{dist} = \text{clamp}(|\mathbf{uv}_{\text{caster}} - \mathbf{u}_{\text{contactPoint}}| \times 1.5, 0.15, 1.8)$$
 

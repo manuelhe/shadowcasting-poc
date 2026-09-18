@@ -8,6 +8,7 @@ import {
   type MotionPreset,
   type DegradationTier,
   type ContactPointPreset,
+  CONTACT_POINT_PRESET_MAP,
 } from "@/components/ShadowBackground";
 import { SPRING_PRESETS } from "@/lib/motion/spring";
 import { DiagnosticHUD, type HarnessSettings } from "@/components/DiagnosticHUD";
@@ -87,13 +88,13 @@ const DEGRADATION_TIERS: { key: DegradationTier; label: string; desc: string }[]
 const MOTION_PRESETS: MotionPreset[] = ["smooth", "snappy", "inertial", "bouncy", "none"];
 
 const CONTACT_POINT_PRESETS: { key: ContactPointPreset; label: string; coords: string }[] = [
-  { key: "top-left", label: "Top Left", coords: "[0.1, 0.1]" },
-  { key: "top-center", label: "Top Center", coords: "[0.5, 0.1]" },
-  { key: "top-right", label: "Top Right", coords: "[0.9, 0.1]" },
-  { key: "center", label: "Center", coords: "[0.5, 0.5]" },
-  { key: "bottom-left", label: "Bottom Left", coords: "[0.1, 0.9]" },
-  { key: "bottom-center", label: "Bottom Center", coords: "[0.5, 1.0]" },
-  { key: "bottom-right", label: "Bottom Right", coords: "[0.9, 0.9]" },
+  { key: "top-left", label: "Top Left", coords: `[${CONTACT_POINT_PRESET_MAP["top-left"].join(", ")}]` },
+  { key: "top-center", label: "Top Center", coords: `[${CONTACT_POINT_PRESET_MAP["top-center"].join(", ")}]` },
+  { key: "top-right", label: "Top Right", coords: `[${CONTACT_POINT_PRESET_MAP["top-right"].join(", ")}]` },
+  { key: "center", label: "Center", coords: `[${CONTACT_POINT_PRESET_MAP["center"].join(", ")}]` },
+  { key: "bottom-left", label: "Bottom Left", coords: `[${CONTACT_POINT_PRESET_MAP["bottom-left"].join(", ")}]` },
+  { key: "bottom-center", label: "Bottom Center", coords: `[${CONTACT_POINT_PRESET_MAP["bottom-center"].join(", ")}]` },
+  { key: "bottom-right", label: "Bottom Right", coords: `[${CONTACT_POINT_PRESET_MAP["bottom-right"].join(", ")}]` },
 ];
 
 export default function Home() {
@@ -678,6 +679,11 @@ export default function Home() {
                     );
                   })}
                 </div>
+                {heroCasterKey === "komorebi" && (
+                  <p className="text-[10px] text-amber-400/90 font-mono pt-1">
+                    Tip: Switch Caster (Control 1) to Image or Branch to view dynamic contact hardening.
+                  </p>
+                )}
               </div>
             </div>
           </div>

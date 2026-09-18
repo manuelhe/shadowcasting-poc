@@ -50,6 +50,16 @@ export type ContactPointPreset =
 
 export type ContactPoint = [number, number] | ContactPointPreset;
 
+export const CONTACT_POINT_PRESET_MAP: Record<ContactPointPreset, [number, number]> = {
+  "top-left": [0.1, 0.1],
+  "top-center": [0.5, 0.1],
+  "top-right": [0.9, 0.1],
+  "center": [0.5, 0.5],
+  "bottom-left": [0.1, 0.9],
+  "bottom-center": [0.5, 1.0],
+  "bottom-right": [0.9, 0.9],
+};
+
 /**
  * Pure helper resolving a ContactPoint preset or custom coordinate pair into normalized [u, v].
  * Defaults to [0.1, 0.1] when undefined or unrecognized.
@@ -64,24 +74,7 @@ export function resolveContactPoint(contactPoint?: ContactPoint): [number, numbe
     return [contactPoint[0], contactPoint[1]];
   }
 
-  switch (contactPoint) {
-    case "top-left":
-      return [0.1, 0.1];
-    case "top-center":
-      return [0.5, 0.1];
-    case "top-right":
-      return [0.9, 0.1];
-    case "center":
-      return [0.5, 0.5];
-    case "bottom-left":
-      return [0.1, 0.9];
-    case "bottom-center":
-      return [0.5, 1.0];
-    case "bottom-right":
-      return [0.9, 0.9];
-    default:
-      return [0.1, 0.1];
-  }
+  return CONTACT_POINT_PRESET_MAP[contactPoint] ?? [0.1, 0.1];
 }
 
 /**
@@ -208,6 +201,7 @@ export interface Canvas2dFallbackOptions {
   shadowOpacity: number;
   ambientScale?: number;
   shadowColor?: string;
+  contactPoint?: [number, number];
 }
 
 /**
@@ -222,6 +216,7 @@ export function renderCanvas2dFallback({
   shadowOpacity,
   ambientScale = 1.0,
   shadowColor = "#000000",
+  contactPoint,
 }: Canvas2dFallbackOptions): React.ReactElement<Record<string, unknown>> {
   const resolvedBlur =
     penumbra > 0 && penumbra <= 1.0 ? Math.round(penumbra * 1000) : penumbra;
@@ -236,6 +231,7 @@ export function renderCanvas2dFallback({
       shadowOpacity={shadowOpacity}
       shadowColor={shadowColor}
       ambientScale={ambientScale}
+      contactPoint={contactPoint}
     />
   );
 }
@@ -395,6 +391,7 @@ export function resolveShadowEngine({
         shadowOpacity: effectiveOpacity,
         ambientScale: 1.0,
         shadowColor,
+        contactPoint,
       });
 
       if (useCanvasFallback) {
