@@ -17,6 +17,8 @@ export const SHOWCASE_NAV_LINKS: ShowcaseNavLink[] = [
   { href: "/showcase/scroll-top", label: "Scroll Top" },
   { href: "/showcase/scroll-mid", label: "Scroll Mid" },
   { href: "/conclusions", label: "Conclusions" },
+  { href: "/guide", label: "Engineering Guide" },
+  { href: "/presentation", label: "Design Deck" },
 ];
 
 export function ShowcaseNav() {
