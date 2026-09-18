@@ -7,6 +7,7 @@ import { uploadTextureImage } from "./texture-utils";
 
 export interface WebGlShadowEngineProps extends ShadowEngineProps {
   contactHardening?: boolean;
+  contactPoint?: [number, number];
 }
 
 const VERTEX_SHADER_SOURCE = `
@@ -35,6 +36,7 @@ uniform float u_scale;
 uniform float u_blurRadius;
 uniform float u_shadowOpacity;
 uniform float u_contactHardening;
+uniform vec2 u_contactPoint;
 uniform vec3 u_shadowColor;
 uniform float u_useBaseTexture;
 
@@ -44,9 +46,9 @@ void main() {
   vec2 casterUV = (centeredUV - u_offset) / u_scale + vec2(0.5);
 
   // Physical contact hardening factor:
-  // Root / branch stem near origin (0.1, 0.1) has sharp penumbra;
-  // outer leaf tips (length > 0.6) exhibit wide, soft penumbra.
-  float dist = clamp(length(casterUV - vec2(0.1, 0.1)) * 1.5, 0.15, 1.8);
+  // Root / branch stem near contact point (u_contactPoint) has sharp penumbra;
+  // outer leaf tips exhibit wide, soft penumbra.
+  float dist = clamp(length(casterUV - u_contactPoint) * 1.5, 0.15, 1.8);
   float penumbraFactor = mix(1.0, dist, u_contactHardening);
 
   // Effective blur radius in UV space
@@ -116,6 +118,8 @@ function createProgram(
   return program;
 }
 
+const DEFAULT_CONTACT_POINT: [number, number] = [0.1, 0.1];
+
 export function WebGlShadowEngine({
   baseImage,
   casterImage,
@@ -126,8 +130,10 @@ export function WebGlShadowEngine({
   shadowColor = "#000000",
   ambientScale,
   contactHardening = true,
+  contactPoint = DEFAULT_CONTACT_POINT,
   onFrameStats,
 }: WebGlShadowEngineProps) {
+  const [contactPointX, contactPointY] = contactPoint ?? DEFAULT_CONTACT_POINT;
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const glRef = useRef<WebGLRenderingContext | null>(null);
   const programRef = useRef<WebGLProgram | null>(null);
@@ -370,6 +376,8 @@ export function WebGlShadowEngine({
           gl.getUniformLocation(program, "u_contactHardening"),
           contactHardening ? 1.0 : 0.0
         );
+        const contactPointLoc = gl.getUniformLocation(program, "u_contactPoint");
+        gl.uniform2f(contactPointLoc, contactPointX, contactPointY);
 
         gl.drawArrays(gl.TRIANGLES, 0, 6);
       }
@@ -389,6 +397,8 @@ export function WebGlShadowEngine({
     shadowColor,
     ambientScale,
     contactHardening,
+    contactPointX,
+    contactPointY,
     onFrameStats,
   ]);
 

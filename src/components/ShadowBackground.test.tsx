@@ -32,6 +32,9 @@ import {
   ShadowCasterConfig,
   type MotionPreset,
   type MotionConfig,
+  resolveContactPoint,
+  type ContactPoint,
+  type ContactPointPreset,
 } from "./ShadowBackground";
 import { SPRING_PRESETS } from "../lib/motion/spring";
 import { MotionController, MotionOutput } from "../lib/motion/motion-controller";
@@ -1735,6 +1738,119 @@ describe("<ShadowBackground />", () => {
         expect(props.shadowOpacity).toBe(0.75);
         expect(props.ambientScale).toBe(1.2);
         expect(props.shadowColor).toBe("#112233");
+      });
+    });
+  });
+
+  describe("9. Contact Point Preset Resolution & DOM Telemetry (#54)", () => {
+    describe("resolveContactPoint pure helper", () => {
+      it("defaults to [0.1, 0.1] when contactPoint is omitted or undefined", () => {
+        expect(resolveContactPoint()).toEqual([0.1, 0.1]);
+        expect(resolveContactPoint(undefined)).toEqual([0.1, 0.1]);
+      });
+
+      it("returns custom tuple [contactPoint[0], contactPoint[1]] directly unconstrained", () => {
+        const customTuple: ContactPoint = [0.35, 0.65];
+        const offCanvasTuple: ContactPoint = [-0.2, -0.1];
+        expect(resolveContactPoint(customTuple)).toEqual([0.35, 0.65]);
+        expect(resolveContactPoint(offCanvasTuple)).toEqual([-0.2, -0.1]);
+        expect(resolveContactPoint([1.5, -0.5])).toEqual([1.5, -0.5]);
+      });
+
+      it("resolves each of the 7 presets correctly", () => {
+        expect(resolveContactPoint("top-left")).toEqual([0.1, 0.1]);
+        expect(resolveContactPoint("top-center")).toEqual([0.5, 0.1]);
+        expect(resolveContactPoint("top-right")).toEqual([0.9, 0.1]);
+        expect(resolveContactPoint("center")).toEqual([0.5, 0.5]);
+        expect(resolveContactPoint("bottom-left")).toEqual([0.1, 0.9]);
+        expect(resolveContactPoint("bottom-center")).toEqual([0.5, 1.0]);
+        expect(resolveContactPoint("bottom-right")).toEqual([0.9, 0.9]);
+      });
+
+      it("falls back to [0.1, 0.1] when an unknown string is provided", () => {
+        expect(resolveContactPoint("unknown-string" as unknown as ContactPointPreset)).toEqual([0.1, 0.1]);
+      });
+    });
+
+    describe("ShadowBackground DOM telemetry & integration", () => {
+      it("defaults data-contact-point to '0.1,0.1' when contactPoint prop is omitted", () => {
+        const html = renderToString(
+          <ShadowBackground
+            basePlate="/images/base.svg"
+            caster={{ type: "branch" }}
+          />
+        );
+        expect(html).toContain('data-contact-point="0.1,0.1"');
+      });
+
+      it("resolves and sets data-contact-point for each of the 7 presets", () => {
+        const presetExpectations: Array<[ContactPointPreset, string]> = [
+          ["top-left", "0.1,0.1"],
+          ["top-center", "0.5,0.1"],
+          ["top-right", "0.9,0.1"],
+          ["center", "0.5,0.5"],
+          ["bottom-left", "0.1,0.9"],
+          ["bottom-center", "0.5,1"],
+          ["bottom-right", "0.9,0.9"],
+        ];
+
+        for (const [preset, expectedAttr] of presetExpectations) {
+          const html = renderToString(
+            <ShadowBackground
+              basePlate="/images/base.svg"
+              caster={{ type: "branch" }}
+              contactPoint={preset}
+            />
+          );
+          expect(html).toContain(`data-contact-point="${expectedAttr}"`);
+        }
+      });
+
+      it("passes through custom tuples [0.35, 0.65] and off-canvas [-0.2, -0.1]", () => {
+        const customHtml = renderToString(
+          <ShadowBackground
+            basePlate="/images/base.svg"
+            caster={{ type: "branch" }}
+            contactPoint={[0.35, 0.65]}
+          />
+        );
+        expect(customHtml).toContain('data-contact-point="0.35,0.65"');
+
+        const offCanvasHtml = renderToString(
+          <ShadowBackground
+            basePlate="/images/base.svg"
+            caster={{ type: "branch" }}
+            contactPoint={[-0.2, -0.1]}
+          />
+        );
+        expect(offCanvasHtml).toContain('data-contact-point="-0.2,-0.1"');
+      });
+
+      it("renders cleanly with contactPoint passed on non-WebGL degradation tier ('low-dynamic')", () => {
+        const html = renderToString(
+          <ShadowBackground
+            basePlate="/images/base.svg"
+            caster={{ type: "branch" }}
+            tier="low-dynamic"
+            contactPoint="center"
+          />
+        );
+        expect(html).toContain('data-contact-point="0.5,0.5"');
+      });
+
+      it("forwards resolved contactPoint to WebGlShadowEngine in resolveShadowEngine", () => {
+        const element = resolveShadowEngine({
+          caster: { type: "image", src: "/images/custom-caster.png" },
+          contactPoint: [0.5, 0.5],
+          useCanvasFallback: false,
+        });
+
+        const boundaryProps = element.props as unknown as {
+          children: React.ReactElement<WebGlShadowEngineProps>;
+        };
+        const webGlChild = boundaryProps.children;
+        expect(webGlChild.type).toBe(WebGlShadowEngine);
+        expect(webGlChild.props.contactPoint).toEqual([0.5, 0.5]);
       });
     });
   });

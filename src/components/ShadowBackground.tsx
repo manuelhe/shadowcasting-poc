@@ -37,6 +37,47 @@ export type DegradationTier =
 export type MotionPreset = "smooth" | "snappy" | "inertial" | "bouncy" | "none";
 
 /**
+ * Canonical named contact point presets mapping to normalized UV coordinates.
+ */
+export type ContactPointPreset =
+  | "top-left"
+  | "top-center"
+  | "top-right"
+  | "center"
+  | "bottom-left"
+  | "bottom-center"
+  | "bottom-right";
+
+export type ContactPoint = [number, number] | ContactPointPreset;
+
+export const CONTACT_POINT_PRESET_MAP: Record<ContactPointPreset, [number, number]> = {
+  "top-left": [0.1, 0.1],
+  "top-center": [0.5, 0.1],
+  "top-right": [0.9, 0.1],
+  "center": [0.5, 0.5],
+  "bottom-left": [0.1, 0.9],
+  "bottom-center": [0.5, 1.0],
+  "bottom-right": [0.9, 0.9],
+};
+
+/**
+ * Pure helper resolving a ContactPoint preset or custom coordinate pair into normalized [u, v].
+ * Defaults to [0.1, 0.1] when undefined or unrecognized.
+ * If an array/tuple is provided, returns [contactPoint[0], contactPoint[1]] unconstrained.
+ */
+export function resolveContactPoint(contactPoint?: ContactPoint): [number, number] {
+  if (!contactPoint) {
+    return [0.1, 0.1];
+  }
+
+  if (Array.isArray(contactPoint)) {
+    return [contactPoint[0], contactPoint[1]];
+  }
+
+  return CONTACT_POINT_PRESET_MAP[contactPoint] ?? [0.1, 0.1];
+}
+
+/**
  * Spring physics, parallax, and ambient motion configuration for interactive shadowcasting.
  */
 export interface MotionConfig {
@@ -66,6 +107,7 @@ export interface ShadowBackgroundProps
   degradation?: DegradationTier;
   penumbra?: number;
   contactHardening?: boolean;
+  contactPoint?: ContactPoint;
   shadowOpacity?: number;
   shadowColor?: string;
   basePlateMotion?: boolean;
@@ -159,6 +201,7 @@ export interface Canvas2dFallbackOptions {
   shadowOpacity: number;
   ambientScale?: number;
   shadowColor?: string;
+  contactPoint?: [number, number];
 }
 
 /**
@@ -173,6 +216,7 @@ export function renderCanvas2dFallback({
   shadowOpacity,
   ambientScale = 1.0,
   shadowColor = "#000000",
+  contactPoint,
 }: Canvas2dFallbackOptions): React.ReactElement<Record<string, unknown>> {
   const resolvedBlur =
     penumbra > 0 && penumbra <= 1.0 ? Math.round(penumbra * 1000) : penumbra;
@@ -187,6 +231,7 @@ export function renderCanvas2dFallback({
       shadowOpacity={shadowOpacity}
       shadowColor={shadowColor}
       ambientScale={ambientScale}
+      contactPoint={contactPoint}
     />
   );
 }
@@ -286,6 +331,7 @@ export interface ResolveEngineOptions {
   shadowColor?: string;
   penumbra?: number;
   contactHardening?: boolean;
+  contactPoint?: [number, number];
   shadowOpacity?: number;
   lightDirection?: [number, number, number];
   useCanvasFallback?: boolean;
@@ -304,6 +350,7 @@ export function resolveShadowEngine({
   shadowColor = "#000000",
   penumbra = 24,
   contactHardening = true,
+  contactPoint,
   shadowOpacity = 0.65,
   lightDirection = [20, 25, 1],
   useCanvasFallback = false,
@@ -344,6 +391,7 @@ export function resolveShadowEngine({
         shadowOpacity: effectiveOpacity,
         ambientScale: 1.0,
         shadowColor,
+        contactPoint,
       });
 
       if (useCanvasFallback) {
@@ -365,6 +413,7 @@ export function resolveShadowEngine({
             shadowColor={shadowColor}
             ambientScale={1.0}
             contactHardening={contactHardening}
+            contactPoint={contactPoint}
           />
         </EngineErrorBoundary>
       );
@@ -420,6 +469,7 @@ export const ShadowBackground = React.forwardRef<
     degradation,
     penumbra = 24,
     contactHardening = true,
+    contactPoint,
     shadowOpacity = 0.65,
     shadowColor = "#000000",
     basePlateMotion = false,
@@ -438,6 +488,7 @@ export const ShadowBackground = React.forwardRef<
   }: ShadowBackgroundProps,
   ref: React.ForwardedRef<HTMLDivElement>
 ) {
+  const resolvedContactPoint = resolveContactPoint(contactPoint);
   const [isDynamicMounted, setIsDynamicMounted] = useState(false);
   const [webGlSupported, setWebGlSupported] = useState(true);
   const stageRef = useRef<HTMLDivElement>(null);
@@ -612,6 +663,7 @@ export const ShadowBackground = React.forwardRef<
       data-motion-active={isMotionActive ? "true" : "false"}
       data-base-plate-motion={basePlateMotion ? "true" : "false"}
       data-blend-mode={blendMode}
+      data-contact-point={`${resolvedContactPoint[0]},${resolvedContactPoint[1]}`}
       style={containerStyle}
       {...(isMotionActive
         ? {
@@ -689,6 +741,7 @@ export const ShadowBackground = React.forwardRef<
               shadowColor,
               penumbra,
               contactHardening,
+              contactPoint: resolvedContactPoint,
               shadowOpacity,
               lightDirection,
               offset,

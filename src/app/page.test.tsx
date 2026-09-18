@@ -244,5 +244,63 @@ describe("Home Page - Hero Telemetry & Interactive Base Plate Motion Toggle (Iss
     expect(presentationLink).toBeDefined();
     expect(presentationLink?.textContent?.includes("Presentation")).toBe(true);
   });
+
+  it("renders Contact Point telemetry pill and default '0.1,0.1' data attribute", async () => {
+    await act(async () => {
+      root?.render(<Home />);
+    });
+
+    const telemetryPill = rootContainer.querySelector('[data-testid="hero-contact-point-telemetry"]');
+    expect(telemetryPill).not.toBeNull();
+    expect(telemetryPill?.textContent?.replace(/\s+/g, " ").trim()).toContain("Contact Point: top-left");
+
+    const shadowContainer = rootContainer.querySelector("[data-contact-point]");
+    expect(shadowContainer).not.toBeNull();
+    expect(shadowContainer?.getAttribute("data-contact-point")).toBe("0.1,0.1");
+  });
+
+  it("updates contactPoint and container attribute when preset button is clicked", async () => {
+    await act(async () => {
+      root?.render(<Home />);
+    });
+
+    const telemetryPill = rootContainer.querySelector('[data-testid="hero-contact-point-telemetry"]');
+    const shadowContainer = rootContainer.querySelector("[data-contact-point]");
+    expect(telemetryPill?.textContent?.replace(/\s+/g, " ").trim()).toContain("Contact Point: top-left");
+    expect(shadowContainer?.getAttribute("data-contact-point")).toBe("0.1,0.1");
+
+    // Click "bottom-center" preset button
+    const buttons = Array.from(rootContainer.querySelectorAll("button"));
+    const bottomCenterButton = buttons.find((btn) => btn.textContent?.trim() === "bottom-center");
+    expect(bottomCenterButton).toBeDefined();
+
+    await act(async () => {
+      bottomCenterButton?.dispatchEvent(new window.MouseEvent("click", { bubbles: true }) as unknown as Event);
+    });
+
+    expect(telemetryPill?.textContent?.replace(/\s+/g, " ").trim()).toContain("Contact Point: bottom-center");
+    expect(shadowContainer?.getAttribute("data-contact-point")).toBe("0.5,1");
+  });
+
+  it("updates contactPoint and container attribute when select dropdown changes", async () => {
+    await act(async () => {
+      root?.render(<Home />);
+    });
+
+    const telemetryPill = rootContainer.querySelector('[data-testid="hero-contact-point-telemetry"]');
+    const shadowContainer = rootContainer.querySelector("[data-contact-point]");
+    const select = rootContainer.querySelector('select[data-testid="hero-contact-point-select"]') as HTMLSelectElement | null;
+    expect(select).not.toBeNull();
+
+    await act(async () => {
+      if (select) {
+        select.value = "center";
+        select.dispatchEvent(new window.Event("change", { bubbles: true }) as unknown as Event);
+      }
+    });
+
+    expect(telemetryPill?.textContent?.replace(/\s+/g, " ").trim()).toContain("Contact Point: center");
+    expect(shadowContainer?.getAttribute("data-contact-point")).toBe("0.5,0.5");
+  });
 });
 

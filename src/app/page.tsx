@@ -7,6 +7,8 @@ import {
   type ShadowCasterConfig,
   type MotionPreset,
   type DegradationTier,
+  type ContactPointPreset,
+  CONTACT_POINT_PRESET_MAP,
 } from "@/components/ShadowBackground";
 import { SPRING_PRESETS } from "@/lib/motion/spring";
 import { DiagnosticHUD, type HarnessSettings } from "@/components/DiagnosticHUD";
@@ -85,6 +87,16 @@ const DEGRADATION_TIERS: { key: DegradationTier; label: string; desc: string }[]
 
 const MOTION_PRESETS: MotionPreset[] = ["smooth", "snappy", "inertial", "bouncy", "none"];
 
+const CONTACT_POINT_PRESETS: { key: ContactPointPreset; label: string; coords: string }[] = [
+  { key: "top-left", label: "Top Left", coords: `[${CONTACT_POINT_PRESET_MAP["top-left"].join(", ")}]` },
+  { key: "top-center", label: "Top Center", coords: `[${CONTACT_POINT_PRESET_MAP["top-center"].join(", ")}]` },
+  { key: "top-right", label: "Top Right", coords: `[${CONTACT_POINT_PRESET_MAP["top-right"].join(", ")}]` },
+  { key: "center", label: "Center", coords: `[${CONTACT_POINT_PRESET_MAP["center"].join(", ")}]` },
+  { key: "bottom-left", label: "Bottom Left", coords: `[${CONTACT_POINT_PRESET_MAP["bottom-left"].join(", ")}]` },
+  { key: "bottom-center", label: "Bottom Center", coords: `[${CONTACT_POINT_PRESET_MAP["bottom-center"].join(", ")}]` },
+  { key: "bottom-right", label: "Bottom Right", coords: `[${CONTACT_POINT_PRESET_MAP["bottom-right"].join(", ")}]` },
+];
+
 export default function Home() {
   // ---------------------------------------------------------------------------
   // 1. Production Hero Showcase State
@@ -95,6 +107,7 @@ export default function Home() {
   const [heroPenumbra, setHeroPenumbra] = useState<number>(24);
   const [heroBasePlate, setHeroBasePlate] = useState<string>("/images/base-minimal-studio.svg");
   const [heroBasePlateMotion, setHeroBasePlateMotion] = useState<boolean>(false);
+  const [heroContactPoint, setHeroContactPoint] = useState<ContactPointPreset>("top-left");
   const [ctaClickCount, setCtaClickCount] = useState<number>(0);
   const [vitals, setVitals] = useState<VitalsSnapshot>({
     lcp: null,
@@ -306,6 +319,7 @@ export default function Home() {
               penumbra={heroPenumbra}
               basePlateMotion={heroBasePlateMotion}
               contactHardening={true}
+              contactPoint={heroContactPoint}
               fit="cover"
               className="h-[560px] sm:h-[620px] lg:h-[660px] w-full"
             >
@@ -360,6 +374,15 @@ export default function Home() {
                     <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-mono bg-zinc-950/75 border border-zinc-800/90 text-zinc-300 shadow-md backdrop-blur-md">
                       <span className="text-zinc-500 font-sans">Penumbra:</span>
                       <span className="text-indigo-400 font-semibold">{heroPenumbra}px</span>
+                    </div>
+
+                    {/* Contact Point */}
+                    <div
+                      data-testid="hero-contact-point-telemetry"
+                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-mono bg-zinc-950/75 border border-zinc-800/90 text-zinc-300 shadow-md backdrop-blur-md"
+                    >
+                      <span className="text-zinc-500 font-sans">Contact Point:</span>{" "}
+                      <span className="text-sky-400 font-semibold">{heroContactPoint}</span>
                     </div>
                   </div>
                 </div>
@@ -436,7 +459,7 @@ export default function Home() {
               </span>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-7 gap-4 text-xs">
               {/* 1. Caster Switcher */}
               <div className="space-y-1.5">
                 <label className="text-zinc-400 font-semibold block">
@@ -611,6 +634,56 @@ export default function Home() {
                     </span>
                   </button>
                 </div>
+              </div>
+
+              {/* 7. Contact Point Preset */}
+              <div className="space-y-1.5" data-testid="hero-contact-point-control">
+                <div className="flex items-center justify-between">
+                  <label className="text-zinc-400 font-semibold block">
+                    Contact Point
+                  </label>
+                  <span className="font-mono text-[10px] text-sky-400 bg-sky-500/10 px-1.5 py-0.5 rounded border border-sky-500/20">
+                    {heroContactPoint}
+                  </span>
+                </div>
+                <select
+                  data-testid="hero-contact-point-select"
+                  aria-label="Contact Point"
+                  value={heroContactPoint}
+                  onChange={(e) => setHeroContactPoint(e.target.value as ContactPointPreset)}
+                  className="w-full bg-zinc-950/60 border border-zinc-800 rounded-lg px-2 py-1.5 text-zinc-200 focus:outline-none focus:border-sky-500 text-xs font-mono"
+                >
+                  {CONTACT_POINT_PRESETS.map((preset) => (
+                    <option key={preset.key} value={preset.key}>
+                      {preset.label} {preset.coords}
+                    </option>
+                  ))}
+                </select>
+                <div className="grid grid-cols-2 gap-1 pt-0.5">
+                  {CONTACT_POINT_PRESETS.map((preset) => {
+                    const isSelected = heroContactPoint === preset.key;
+                    return (
+                      <button
+                        key={preset.key}
+                        type="button"
+                        onClick={() => setHeroContactPoint(preset.key)}
+                        className={`px-1.5 py-1 rounded text-[11px] font-mono border transition text-center truncate ${
+                          isSelected
+                            ? "bg-sky-500/20 border-sky-500 text-sky-300 font-semibold"
+                            : "bg-zinc-950/60 border-zinc-800 text-zinc-400 hover:text-zinc-200 hover:border-zinc-700"
+                        }`}
+                        title={`${preset.label} ${preset.coords}`}
+                      >
+                        {preset.key}
+                      </button>
+                    );
+                  })}
+                </div>
+                {heroCasterKey === "komorebi" && (
+                  <p className="text-[10px] text-amber-400/90 font-mono pt-1">
+                    Tip: Switch Caster (Control 1) to Image or Branch to view dynamic contact hardening.
+                  </p>
+                )}
               </div>
             </div>
           </div>
