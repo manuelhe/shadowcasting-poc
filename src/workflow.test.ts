@@ -140,3 +140,198 @@ describe("CI Quality Gate Workflow Contract (.github/workflows/deploy.yml)", () 
     expect(installStep?.["continue-on-error"]).toBeUndefined();
   });
 });
+
+describe("Vercel CLI Deployment Job Contract (.github/workflows/deploy.yml)", () => {
+  it("defines the 'deploy' job running on 'ubuntu-latest' and depending on 'quality-gate'", () => {
+    const rawYaml = fs.readFileSync(WORKFLOW_PATH, "utf-8");
+    const workflow = YAML.parse(rawYaml);
+
+    expect(workflow.jobs.deploy).toBeDefined();
+    const deployJob = workflow.jobs.deploy;
+    expect(deployJob["runs-on"]).toBe("ubuntu-latest");
+    expect(deployJob.needs).toBe("quality-gate");
+  });
+
+  it("binds VERCEL_ORG_ID and VERCEL_PROJECT_ID environment variables from secrets", () => {
+    const rawYaml = fs.readFileSync(WORKFLOW_PATH, "utf-8");
+    const workflow = YAML.parse(rawYaml);
+    const deployJob = workflow.jobs.deploy;
+
+    expect(deployJob.env).toBeDefined();
+    expect(deployJob.env.VERCEL_ORG_ID).toBe("${{ secrets.VERCEL_ORG_ID }}");
+    expect(deployJob.env.VERCEL_PROJECT_ID).toBe("${{ secrets.VERCEL_PROJECT_ID }}");
+  });
+
+  it("has secret fallback check step that guards subsequent deployment steps", () => {
+    const rawYaml = fs.readFileSync(WORKFLOW_PATH, "utf-8");
+    const workflow = YAML.parse(rawYaml);
+    const steps: Array<{
+      id?: string;
+      name?: string;
+      uses?: string;
+      env?: Record<string, unknown>;
+      run?: string;
+      if?: string;
+      [key: string]: unknown;
+    }> = workflow.jobs.deploy.steps;
+
+    const checkCredsStep = steps.find((s) => s.id === "check-creds");
+    expect(checkCredsStep).toBeDefined();
+    expect(checkCredsStep?.env?.VERCEL_TOKEN).toBe("${{ secrets.VERCEL_TOKEN }}");
+    expect(checkCredsStep?.run).toContain("can_deploy=false");
+    expect(checkCredsStep?.run).toContain("can_deploy=true");
+    expect(checkCredsStep?.run).toContain("GITHUB_STEP_SUMMARY");
+
+    // All subsequent steps after check-creds must have conditional guard on can_deploy == 'true'
+    const checkCredsIdx = steps.findIndex((s) => s.id === "check-creds");
+    const subsequentSteps = steps.slice(checkCredsIdx + 1);
+    expect(subsequentSteps.length).toBeGreaterThan(0);
+    for (const step of subsequentSteps) {
+      expect(step.if).toBeDefined();
+      expect(step.if).toContain("steps.check-creds.outputs.can_deploy == 'true'");
+    }
+  });
+
+  it("configures setup prerequisites: checkout, pnpm v11, node 20 with cache, install, and vercel cli", () => {
+    const rawYaml = fs.readFileSync(WORKFLOW_PATH, "utf-8");
+    const workflow = YAML.parse(rawYaml);
+    const steps: Array<{
+      id?: string;
+      name?: string;
+      uses?: string;
+      with?: Record<string, unknown>;
+      run?: string;
+      if?: string;
+      [key: string]: unknown;
+    }> = workflow.jobs.deploy.steps;
+
+    const checkoutStep = steps.find((s) => s.uses?.startsWith("actions/checkout"));
+    expect(checkoutStep).toBeDefined();
+    expect(checkoutStep?.uses).toBe("actions/checkout@v4");
+
+    const pnpmSetupStep = steps.find((s) => s.uses?.startsWith("pnpm/action-setup"));
+    expect(pnpmSetupStep).toBeDefined();
+    expect(pnpmSetupStep?.uses).toBe("pnpm/action-setup@v4");
+    expect(String(pnpmSetupStep?.with?.version)).toBe("11");
+
+    const nodeSetupStep = steps.find((s) => s.uses?.startsWith("actions/setup-node"));
+    expect(nodeSetupStep).toBeDefined();
+    expect(nodeSetupStep?.uses).toBe("actions/setup-node@v4");
+    expect(nodeSetupStep?.with?.["node-version"]).toBe(20);
+    expect(nodeSetupStep?.with?.cache).toBe("pnpm");
+
+    const installStep = steps.find((s) => s.run?.includes("pnpm install"));
+    expect(installStep).toBeDefined();
+    expect(installStep?.run).toBe("pnpm install --frozen-lockfile");
+
+    const vercelCliStep = steps.find((s) => s.run?.includes("vercel@latest"));
+    expect(vercelCliStep).toBeDefined();
+    expect(vercelCliStep?.run).toBe("npm install --global vercel@latest");
+  });
+
+  it("pulls Vercel environment routing production for main and preview for branches/PRs", () => {
+    const rawYaml = fs.readFileSync(WORKFLOW_PATH, "utf-8");
+    const workflow = YAML.parse(rawYaml);
+    const steps: Array<{
+      run?: string;
+      if?: string;
+      [key: string]: unknown;
+    }> = workflow.jobs.deploy.steps;
+
+    const pullPreview = steps.find(
+      (s) => s.run?.includes("vercel pull") && s.run?.includes("environment=preview")
+    );
+    expect(pullPreview).toBeDefined();
+    expect(pullPreview?.run).toBe(
+      "vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}"
+    );
+    expect(pullPreview?.if).toContain("github.ref != 'refs/heads/main'");
+
+    const pullProd = steps.find(
+      (s) => s.run?.includes("vercel pull") && s.run?.includes("environment=production")
+    );
+    expect(pullProd).toBeDefined();
+    expect(pullProd?.run).toBe(
+      "vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}"
+    );
+    expect(pullProd?.if).toContain("github.ref == 'refs/heads/main'");
+  });
+
+  it("uses prebuilt deployment with 'vercel build' and 'vercel deploy --prebuilt'", () => {
+    const rawYaml = fs.readFileSync(WORKFLOW_PATH, "utf-8");
+    const workflow = YAML.parse(rawYaml);
+    const steps: Array<{
+      id?: string;
+      run?: string;
+      if?: string;
+      [key: string]: unknown;
+    }> = workflow.jobs.deploy.steps;
+
+    // Pre-build steps
+    const buildPreview = steps.find(
+      (s) => s.run?.includes("vercel build") && !s.run?.includes("--prod")
+    );
+    expect(buildPreview).toBeDefined();
+    expect(buildPreview?.run).toBe("vercel build --token=${{ secrets.VERCEL_TOKEN }}");
+    expect(buildPreview?.if).toContain("github.ref != 'refs/heads/main'");
+
+    const buildProd = steps.find((s) => s.run?.includes("vercel build --prod"));
+    expect(buildProd).toBeDefined();
+    expect(buildProd?.run).toBe("vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}");
+    expect(buildProd?.if).toContain("github.ref == 'refs/heads/main'");
+
+    // Deploy prebuilt preview with output url capture
+    const deployPreview = steps.find((s) => s.id === "deploy-preview");
+    expect(deployPreview).toBeDefined();
+    expect(deployPreview?.run).toContain(
+      "url=$(vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }})"
+    );
+    expect(deployPreview?.run).toContain('echo "url=$url" >> "$GITHUB_OUTPUT"');
+    expect(deployPreview?.if).toContain("github.ref != 'refs/heads/main'");
+
+    // Deploy prebuilt production
+    const deployProd = steps.find((s) => s.run?.includes("vercel deploy --prebuilt --prod"));
+    expect(deployProd).toBeDefined();
+    expect(deployProd?.run).toBe(
+      "vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}"
+    );
+    expect(deployProd?.if).toContain("github.ref == 'refs/heads/main'");
+  });
+
+  it("targets --prod flag strictly on main branch deployment", () => {
+    const rawYaml = fs.readFileSync(WORKFLOW_PATH, "utf-8");
+    const workflow = YAML.parse(rawYaml);
+    const steps: Array<{
+      run?: string;
+      if?: string;
+      [key: string]: unknown;
+    }> = workflow.jobs.deploy.steps;
+
+    const prodSteps = steps.filter(
+      (s) => s.run?.includes("--prod") || s.run?.includes("environment=production")
+    );
+    expect(prodSteps.length).toBeGreaterThanOrEqual(3);
+    for (const step of prodSteps) {
+      expect(step.if).toContain("github.ref == 'refs/heads/main'");
+      expect(step.if).not.toContain("github.ref != 'refs/heads/main'");
+    }
+  });
+
+  it("writes deployment URL and summary to $GITHUB_STEP_SUMMARY", () => {
+    const rawYaml = fs.readFileSync(WORKFLOW_PATH, "utf-8");
+    const workflow = YAML.parse(rawYaml);
+    const steps: Array<{
+      run?: string;
+      if?: string;
+      [key: string]: unknown;
+    }> = workflow.jobs.deploy.steps;
+
+    const summaryStep = steps.find(
+      (s) =>
+        s.run?.includes("GITHUB_STEP_SUMMARY") &&
+        s.run?.includes("steps.deploy-preview.outputs.url")
+    );
+    expect(summaryStep).toBeDefined();
+    expect(summaryStep?.if).toContain("steps.check-creds.outputs.can_deploy == 'true'");
+  });
+});

@@ -40,3 +40,86 @@ jobs:
 
       - name: Run test suite
         run: pnpm test
+
+  deploy:
+    name: Deploy
+    needs: quality-gate
+    runs-on: ubuntu-latest
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check Vercel credentials
+        id: check-creds
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          if [ -z "$VERCEL_TOKEN" ]; then
+            echo "can_deploy=false" >> "$GITHUB_OUTPUT"
+            echo "### ⚠️ Deployment Skipped" >> "$GITHUB_STEP_SUMMARY"
+            echo "Vercel credentials are not configured (secrets.VERCEL_TOKEN is missing)." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "can_deploy=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup pnpm
+        if: steps.check-creds.outputs.can_deploy == 'true'
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - name: Setup Node.js 20
+        if: steps.check-creds.outputs.can_deploy == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        if: steps.check-creds.outputs.can_deploy == 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Vercel CLI
+        if: steps.check-creds.outputs.can_deploy == 'true'
+        run: npm install --global vercel@latest
+
+      - name: Pull Vercel environment (Preview)
+        if: steps.check-creds.outputs.can_deploy == 'true' && github.ref != 'refs/heads/main'
+        run: vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Pull Vercel environment (Production)
+        if: steps.check-creds.outputs.can_deploy == 'true' && github.ref == 'refs/heads/main'
+        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Pre-build application (Preview)
+        if: steps.check-creds.outputs.can_deploy == 'true' && github.ref != 'refs/heads/main'
+        run: vercel build --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Pre-build application (Production)
+        if: steps.check-creds.outputs.can_deploy == 'true' && github.ref == 'refs/heads/main'
+        run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Deploy prebuilt (Preview)
+        id: deploy-preview
+        if: steps.check-creds.outputs.can_deploy == 'true' && github.ref != 'refs/heads/main'
+        run: |
+          url=$(vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }})
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy prebuilt (Production)
+        if: steps.check-creds.outputs.can_deploy == 'true' && github.ref == 'refs/heads/main'
+        run: vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Write deployment summary
+        if: steps.check-creds.outputs.can_deploy == 'true'
+        run: |
+          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            echo "### 🚀 Vercel Production Deployment" >> "$GITHUB_STEP_SUMMARY"
+            echo "Successfully deployed prebuilt artifacts to production." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "### 🔍 Vercel Preview Deployment" >> "$GITHUB_STEP_SUMMARY"
+            echo "Deployment URL: ${{ steps.deploy-preview.outputs.url }}" >> "$GITHUB_STEP_SUMMARY"
+          fi
