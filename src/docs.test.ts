@@ -37,6 +37,7 @@ const README_PATH = path.join(REPO_ROOT, "README.md");
 const EDITORIAL_GUIDE_PATH = path.join(REPO_ROOT, "docs/guides/01-editorial-hero.md");
 const API_REF_PATH = path.join(REPO_ROOT, "docs/guides/api-reference.md");
 const CONCLUSIONS_PATH = path.join(REPO_ROOT, "docs/conclusions.md");
+const VERCEL_GUIDE_PATH = path.join(REPO_ROOT, "docs/guides/vercel-deployment-pipeline.md");
 
 /**
  * Shared helper to assert that content adheres to canonical domain terminology
@@ -314,6 +315,7 @@ describe("Documentation Integrity Suite (src/docs.test.ts)", () => {
       "docs/guides/03-procedural-shadows.md",
       "docs/guides/04-performance-and-degradation.md",
       "docs/guides/05-custom-physics-and-lighting.md",
+      "docs/guides/vercel-deployment-pipeline.md",
     ];
 
     for (const guide of expectedGuides) {
@@ -833,5 +835,82 @@ describe("Executive Conclusions Document Integrity (docs/conclusions.md - Ticket
   it("strictly adheres to canonical domain terminology from CONTEXT.md", () => {
     const content = fs.readFileSync(CONCLUSIONS_PATH, "utf-8");
     assertCanonicalVocabulary(content, ["Zero-LCP Floor"]);
+  });
+});
+
+describe("Vercel Deployment Pipeline Guide Integrity (docs/guides/vercel-deployment-pipeline.md - Ticket #50)", () => {
+  it("docs/guides/vercel-deployment-pipeline.md exists and is non-empty (>500 bytes)", () => {
+    expect(fs.existsSync(VERCEL_GUIDE_PATH)).toBe(true);
+    const stats = fs.statSync(VERCEL_GUIDE_PATH);
+    expect(stats.size).toBeGreaterThan(500);
+  });
+
+  it("contains required title, executive summary, secrets provisioning, and deployment workflow sections", () => {
+    const content = fs.readFileSync(VERCEL_GUIDE_PATH, "utf-8");
+
+    // Title
+    expect(content).toContain(
+      "# CI/CD Deployment Guide: Vercel & GitHub Actions Pipeline"
+    );
+
+    // Executive summary and two-job architecture
+    expect(content).toContain("Executive Summary & Pipeline Overview");
+    expect(content).toContain("Two-Job Architecture");
+    expect(content).toContain("quality-gate");
+    expect(content).toContain("deploy");
+
+    // Secrets provisioning walkthrough & CLI shortcut
+    expect(content).toContain("GitHub Repository Secrets Provisioning Guide");
+    expect(content).toContain("`VERCEL_TOKEN`");
+    expect(content).toContain("`VERCEL_ORG_ID`");
+    expect(content).toContain("`VERCEL_PROJECT_ID`");
+    expect(content).toContain("CLI Shortcut: Automatic Extraction via `vercel link`");
+    expect(content).toContain(".vercel/project.json");
+    expect(content).toContain('"orgId"');
+    expect(content).toContain('"projectId"');
+
+    // Environments
+    expect(content).toContain("Deployment Environments: Production vs. Preview");
+    expect(content).toContain("Production Environment (`main` Branch)");
+    expect(content).toContain("Preview Environment (Pull Requests)");
+
+    // Sticky PR comment and workflow dispatch
+    expect(content).toContain("Sticky PR Preview Comment & Manual Dispatch");
+    expect(content).toContain("<!-- vercel-preview-deployment-comment -->");
+    expect(content).toContain("workflow_dispatch");
+
+    // Graceful secret degradation
+    expect(content).toContain("Graceful Secret Degradation");
+    expect(content).toContain("can_deploy");
+    expect(content).toContain("Deployment Skipped");
+
+    // Local pre-build architecture
+    expect(content).toContain("Local Pre-Build Architecture & Immutable Deployments");
+    expect(content).toContain("--prebuilt");
+  });
+
+  it("all relative markdown links and application routes resolve to valid files on disk (zero broken links)", () => {
+    const content = fs.readFileSync(VERCEL_GUIDE_PATH, "utf-8");
+    const checkedLinks = validateMarkdownLinks(VERCEL_GUIDE_PATH, content);
+
+    // Verify key workflow, ADR, and guide cross-references
+    expect(checkedLinks).toContain("../../.github/workflows/deploy.yml");
+    expect(checkedLinks).toContain("../../CONTEXT.md");
+    expect(checkedLinks).toContain("../../README.md");
+    expect(checkedLinks).toContain("../adr/0001-shadowcasting-component-architecture.md");
+    expect(checkedLinks).toContain("../adr/0002-decoupled-transparent-shadow-layer.md");
+    expect(checkedLinks).toContain("api-reference.md");
+    expect(checkedLinks).toContain("01-editorial-hero.md");
+    expect(checkedLinks).toContain("04-performance-and-degradation.md");
+    expect(checkedLinks).toContain("/");
+    expect(checkedLinks).toContain("/showcase");
+  });
+
+  it("strictly adheres to canonical domain terminology from CONTEXT.md", () => {
+    const content = fs.readFileSync(VERCEL_GUIDE_PATH, "utf-8");
+    assertCanonicalVocabulary(content, [
+      "Static Poster Fallback",
+      "Degradation Tier",
+    ]);
   });
 });
