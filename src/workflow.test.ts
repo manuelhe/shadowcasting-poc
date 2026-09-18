@@ -124,11 +124,10 @@ describe("CI Quality Gate Workflow Contract (.github/workflows/deploy.yml)", () 
     expect(checkoutStep).toBeDefined();
     expect(checkoutStep?.uses).toBe("actions/checkout@v4");
 
-    // Step 2: pnpm/action-setup
+    // Step 2: pnpm/action-setup (auto-detects version from package.json packageManager)
     const pnpmSetupStep = steps.find((s) => s.uses?.startsWith("pnpm/action-setup"));
     expect(pnpmSetupStep).toBeDefined();
     expect(pnpmSetupStep?.uses).toBe("pnpm/action-setup@v4");
-    expect(String(pnpmSetupStep?.with?.version)).toBe("11");
 
     // Verify pnpm major version matches package.json packageManager
     const pkg = JSON.parse(fs.readFileSync(PACKAGE_JSON_PATH, "utf-8"));
@@ -242,7 +241,6 @@ describe("Vercel CLI Deployment Job Contract (.github/workflows/deploy.yml)", ()
     const pnpmSetupStep = steps.find((s) => s.uses?.startsWith("pnpm/action-setup"));
     expect(pnpmSetupStep).toBeDefined();
     expect(pnpmSetupStep?.uses).toBe("pnpm/action-setup@v4");
-    expect(String(pnpmSetupStep?.with?.version)).toBe("11");
 
     const nodeSetupStep = steps.find((s) => s.uses?.startsWith("actions/setup-node"));
     expect(nodeSetupStep).toBeDefined();
