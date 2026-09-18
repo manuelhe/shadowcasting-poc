@@ -141,4 +141,16 @@ describe("Engineering Guide Page Route (/guide)", () => {
     expect(table?.textContent).toContain("penumbra");
     expect(table?.textContent).toContain("contactHardening");
   });
+
+  it("configures realistic optical penumbra blur (>= 12px) for live implementation recipes, preventing sharp shadows", async () => {
+    await act(async () => {
+      root?.render(<GuidePage />);
+    });
+
+    const mockShadow = rootContainer.querySelector('[data-testid="shadow-background-mock"]');
+    expect(mockShadow).not.toBeNull();
+    const penumbraAttr = Number(mockShadow?.getAttribute("data-penumbra"));
+    // Optical penumbra must be in visible pixel range (>= 12px) rather than fractional sub-pixel values (like 0.025) that round to 0
+    expect(penumbraAttr).toBeGreaterThanOrEqual(12);
+  });
 });

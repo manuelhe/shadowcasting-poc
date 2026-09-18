@@ -1359,6 +1359,55 @@ describe("<ShadowBackground />", () => {
       expect(branchProps.windStrength).toBeCloseTo(0.8 + Math.abs(-28.4) * 0.02, 2);
     });
 
+    it("defensively auto-scales normalized UV penumbra fractions (<= 1.0) into pixel blur radius across engines", () => {
+      const mockMotionOutput: MotionOutput = {
+        shadowOffsetX: 0,
+        shadowOffsetY: 0,
+        penumbraMultiplier: 1.0,
+        skewX: 0,
+        skewY: 0,
+        isAtRest: true,
+        normalizedUV: { u: 0.5, v: 0.5 },
+        virtualLightDirection: { x: 0, y: 0, z: 1 },
+        scrollProgress: 0,
+        scrollDeltaY: 0,
+        rawPointer: { x: 0, y: 0 },
+      };
+
+      // 1. WebGl: 0.025 normalized UV fraction -> scaled to 25px blur
+      const webglEl = resolveShadowEngine({
+        caster: { type: "image", src: "/caster.png" },
+        basePlate: "/base.jpg",
+        penumbra: 0.025,
+        useCanvasFallback: false,
+        motionOutput: mockMotionOutput,
+      });
+      const webglChild = (webglEl.props as unknown as { children: React.ReactElement }).children;
+      const webglProps = webglChild.props as unknown as WebGlShadowEngineProps;
+      expect(webglProps.blurRadius).toBe(25);
+
+      // 2. Canvas 2D fallback: 0.025 -> 25px blur
+      const canvasEl = resolveShadowEngine({
+        caster: { type: "image", src: "/caster.png" },
+        basePlate: "/base.jpg",
+        penumbra: 0.025,
+        useCanvasFallback: true,
+        motionOutput: mockMotionOutput,
+      });
+      const canvasProps = canvasEl.props as unknown as ShadowEngineProps;
+      expect(canvasProps.blurRadius).toBe(25);
+
+      // 3. Procedural branch: 0.02 -> 20px penumbraRadius
+      const branchEl = resolveShadowEngine({
+        caster: { type: "branch" },
+        basePlate: "/base.jpg",
+        penumbra: 0.02,
+        motionOutput: mockMotionOutput,
+      });
+      const branchProps = branchEl.props as unknown as ProceduralBranchProps;
+      expect(branchProps.penumbraRadius).toBe(20);
+    });
+
     describe("8. Decoupled Static Base Plate, Bleed Overscan & Opt-in Motion (ADR-0002)", () => {
       it("keeps Base Plate image untransformed while applying 3D perspective and 5% overscan to dynamic shadow layer by default", async () => {
         let idleCallback: (() => void) | null = null;

@@ -300,7 +300,7 @@ import { ShadowBackground } from "@/components/ShadowBackground";
 | `caster` | `ShadowCasterConfig` | **Required** | Discriminated union defining the shadow shape source (see below). |
 | `poster` | `string` | `undefined` | Static fallback image URL rendered during SSR or on low-tier devices. |
 | `tier` / `degradation` | `DegradationTier` | `"auto"` | `"auto"`, `"full-dynamic"`, `"low-dynamic"`, `"static-poster"`. |
-| `penumbra` | `number` | `0.02` | Diffusion softness of the shadow boundary (typical: `0.005` to `0.06`). |
+| `penumbra` | `number` | `24` | Diffusion softness of the shadow boundary in pixels (typical: `12` to `48`; auto-scales normalized fractions &le; `1.0`). |
 | `contactHardening`| `boolean` | `true` | When true, shadows are sharp near contact points and diffuse outward. |
 | `shadowOpacity` | `number` | `0.65` | Maximum darkness multiplier of the cast shadow (`0.0` to `1.0`). |
 | `shadowColor` | `string` | `"#000000"` | Hex or RGBA color code for the shadow tone. |
@@ -364,7 +364,7 @@ export function HeroSection() {
         src: "/images/caster-branch.svg",
         opacity: 0.7,
       }}
-      penumbra={0.025}
+      penumbra={24}
       contactHardening={true}
       motion="smooth"
       className="relative min-h-[600px] w-full"
@@ -403,7 +403,7 @@ export function StudioKomorebiHero() {
         speed: 0.8,
       }}
       shadowOpacity={0.45}
-      penumbra={0.04}
+      penumbra={28}
       motion={{
         preset: "inertial",
         ambient: true,
@@ -442,7 +442,7 @@ export function BotanicalShowcase() {
         swaySpeed: 1.2,
       }}
       contactHardening={true}
-      penumbra={0.018}
+      penumbra={20}
       motion={{
         preset: "bouncy",
         stiffness: 90,
