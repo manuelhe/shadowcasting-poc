@@ -39,7 +39,7 @@ export default function EditorialHero() {
       poster="/images/wood-background.webp"
       caster={{
         type: "image",
-        src: "/images/shadow-1.webp",
+        src: "/images/grass.svg",
       }}
       contactHardening={true}
       penumbra={24}
@@ -133,7 +133,7 @@ Production-ready assets are cataloged in [`public/images/`](public/images/):
 | :--- | :--- | :--- | :--- |
 | [`public/images/wood-background.webp`](public/images/wood-background.webp) | WebP Image | Base Plate | High-resolution architectural dark wood plank substrate with rich grain materiality. |
 | [`public/images/decayedpaint-background.webp`](public/images/decayedpaint-background.webp) | WebP Image | Base Plate | High-resolution distressed urban concrete and weathered peeling paint substrate. |
-| [`public/images/shadow-1.webp`](public/images/shadow-1.webp) | WebP Image | Shadow Caster | High-resolution isolated botanical foliage and leaf silhouette alpha mask. |
+| [`public/images/grass.svg`](public/images/grass.svg) | SVG Vector | Shadow Caster | High-resolution isolated botanical foliage and leaf silhouette alpha mask. |
 | [`public/images/shadow-2.webp`](public/images/shadow-2.webp) | WebP Image | Shadow Caster | High-resolution organic tree branch and leaf cluster silhouette alpha mask. |
 | [`public/images/base-minimal-studio.svg`](public/images/base-minimal-studio.svg) | SVG Vector | Base Plate | Clean neutral studio surface with soft geometric gradient lighting. |
 | [`public/images/base-architectural.svg`](public/images/base-architectural.svg) | SVG Vector | Base Plate | Architectural interior elevation with clean perspective floor and wall planes. |
@@ -150,7 +150,7 @@ The proof-of-concept application is organized into two primary experiences:
 The primary root page serves as an interactive developer lab and diagnostic staging environment:
 - **Real-Time Diagnostic HUD**: Live Core Web Vitals telemetry (LCP, CLS, INP), active rendering engine indicator, FPS counter, and GPU frame render time.
 - **Engine Comparison**: Live toggle between WebGL Poisson-disk filtering and Canvas 2D fallback.
-- **Caster Switcher**: Swap between raster silhouette masks (`shadow-1.webp`, `shadow-2.webp`), procedural Komorebi noise, and parametric branch skeletons.
+- **Caster Switcher**: Swap between raster silhouette masks (`grass.svg`, `shadow-2.webp`), procedural Komorebi noise, and parametric branch skeletons.
 - **Motion Physics Calibration**: Real-time tuning of spring presets (`smooth`, `snappy`, `inertial`, `bouncy`), displacement, damping, and ambient sway.
 - **Base Plate Motion Toggle**: Interactive switch demonstrating decoupled stationary substrate (`basePlateMotion: false`) vs. coupled whole-scene 3D tilt (`basePlateMotion: true`).
 

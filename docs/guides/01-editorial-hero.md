@@ -53,7 +53,7 @@ To solve this, [ADR-0002](../adr/0002-decoupled-transparent-shadow-layer.md) est
 
 * **Live Showcase**: [/showcase/wood-header](/showcase/wood-header)
 * **Base Plate Asset**: `/images/wood-background.webp` (96 KB WebP, architectural teak grain)
-* **Shadow Caster Asset**: `/images/shadow-1.webp` (14 KB WebP, organic botanical silhouette)
+* **Shadow Caster Asset**: `/images/grass.svg` (Scalable SVG, organic botanical grass silhouette)
 
 ```
 +-----------------------------------------------------------------------------------+
@@ -65,7 +65,7 @@ To solve this, [ADR-0002](../adr/0002-decoupled-transparent-shadow-layer.md) est
 |     organic timber substrate. Decoupled alpha shadows render with variable        |
 |     penumbra depth over an unmoving, photorealistic Base Plate.                   |
 |                                                                                   |
-|  [BASE: WOOD-BACKGROUND.WEBP] • [CASTER: SHADOW-1.WEBP] • [PENUMBRA: 28PX]        |
+|  [BASE: WOOD-BACKGROUND.WEBP] • [CASTER: GRASS.SVG] • [PENUMBRA: 28PX]            |
 +-----------------------------------------------------------------------------------+
 ```
 
@@ -109,7 +109,7 @@ export default function WoodHeaderHero() {
       <ShadowBackground
         basePlate="/images/wood-background.webp"
         poster="/images/wood-background.webp"
-        caster={{ type: "image", src: "/images/shadow-1.webp" }}
+        caster={{ type: "image", src: "/images/grass.svg" }}
         className="absolute inset-0"
         tier="auto"
         motion={{ preset: "smooth", ambient: true, maxDisplacementPx: 40 }}
@@ -153,7 +153,7 @@ export default function WoodHeaderHero() {
             </span>
             <span className="text-neutral-500">•</span>
             <span className="px-3 py-1 rounded-md bg-black/40 border border-white/10 backdrop-blur-sm">
-              CASTER: SHADOW-1.WEBP
+              CASTER: GRASS.SVG
             </span>
             <span className="text-neutral-500">•</span>
             <span className="px-3 py-1 rounded-md bg-black/40 border border-white/10 backdrop-blur-sm">

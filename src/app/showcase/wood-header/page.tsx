@@ -14,7 +14,7 @@ export default function WoodHeaderShowcasePage() {
       {/* Background Shadowcasting Layer with Layered Children */}
       <ShadowBackground
         basePlate="/images/wood-background.webp"
-        caster={{ type: "image", src: "/images/shadow-1.webp" }}
+        caster={{ type: "image", src: "/images/grass.svg" }}
         className="absolute inset-0"
         tier="auto"
         motion={{ preset: "smooth", ambient: true, maxDisplacementPx: 40 }}
@@ -57,7 +57,7 @@ export default function WoodHeaderShowcasePage() {
             </span>
             <span className="text-neutral-500">•</span>
             <span className="px-3 py-1 rounded-md bg-black/40 border border-white/10 backdrop-blur-sm">
-              CASTER: SHADOW-1.WEBP
+              CASTER: GRASS.SVG
             </span>
             <span className="text-neutral-500">•</span>
             <span className="px-3 py-1 rounded-md bg-black/40 border border-white/10 backdrop-blur-sm">

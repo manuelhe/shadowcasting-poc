@@ -44,7 +44,7 @@ export const SHOWCASE_STUDIES: ShowcaseStudy[] = [
     icon: Trees,
     assetPairings: {
       basePlate: "wood-background.webp",
-      shadowCasters: "shadow-1.webp & shadow-2.webp",
+      shadowCasters: "grass.svg & shadow-2.webp",
       technique: "Decoupled Static Base Plate + Transparent Alpha WebGL",
     },
     highlights: [
@@ -65,7 +65,7 @@ export const SHOWCASE_STUDIES: ShowcaseStudy[] = [
     icon: Palette,
     assetPairings: {
       basePlate: "decayedpaint-background.webp",
-      shadowCasters: "shadow-1.webp & shadow-2.webp",
+      shadowCasters: "grass.svg & shadow-2.webp",
       technique: "Poisson Disk Soft Shadow Kernel + Pointer Tracking",
     },
     highlights: [
@@ -86,7 +86,7 @@ export const SHOWCASE_STUDIES: ShowcaseStudy[] = [
     icon: Scroll,
     assetPairings: {
       basePlate: "wood-background.webp",
-      shadowCasters: "shadow-1.webp",
+      shadowCasters: "grass.svg",
       technique: "Normalized Viewport Progress (0.0 → 1.0 Hero Exit)",
     },
     highlights: [
@@ -107,7 +107,7 @@ export const SHOWCASE_STUDIES: ShowcaseStudy[] = [
     icon: BookOpen,
     assetPairings: {
       basePlate: "decayedpaint-background.webp",
-      shadowCasters: "shadow-1.webp",
+      shadowCasters: "grass.svg",
       technique: "Mid-Screen Intersection Tracking (0.0 → 1.0 Entry-to-Exit)",
     },
     highlights: [
@@ -127,7 +127,7 @@ export default function ShowcaseGalleryPage() {
           basePlate="/images/wood-background.webp"
           caster={{
             type: "image",
-            src: "/images/shadow-1.webp",
+            src: "/images/grass.svg",
           }}
           penumbra={28}
           motion={{ preset: "smooth", ambient: true, ambientSpeed: 0.3 }}

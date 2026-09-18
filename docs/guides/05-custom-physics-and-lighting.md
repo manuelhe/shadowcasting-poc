@@ -233,7 +233,7 @@ Coupled motion is appropriate when the entire component is conceptualized as an 
 ```tsx
 <ShadowBackground
   basePlate="/images/wood-background.webp"
-  caster={{ type: "image", src: "/images/shadow-1.webp" }}
+  caster={{ type: "image", src: "/images/grass.svg" }}
   basePlateMotion={true}
   motion="snappy"
   className="relative h-[480px] w-[360px] rounded-3xl shadow-2xl"

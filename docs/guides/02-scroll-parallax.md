@@ -351,7 +351,7 @@ export default function ScrollMidBreakExample() {
       >
         <ShadowBackground
           basePlate="/images/decayedpaint-background.webp"
-          caster={{ type: "image", src: "/images/shadow-1.webp" }}
+          caster={{ type: "image", src: "/images/grass.svg" }}
           className="absolute inset-0"
           tier="auto"
           offset={{ x: 0, y: Math.round(midParallaxOffset) }}
