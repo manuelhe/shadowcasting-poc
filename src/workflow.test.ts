@@ -335,3 +335,96 @@ describe("Vercel CLI Deployment Job Contract (.github/workflows/deploy.yml)", ()
     expect(summaryStep?.if).toContain("steps.check-creds.outputs.can_deploy == 'true'");
   });
 });
+
+describe("PR Preview Sticky Feedback Commenter & Manual Dispatch Contract (.github/workflows/deploy.yml)", () => {
+  it("configures workflow_dispatch inputs with target environment choice ('preview', 'production')", () => {
+    const rawYaml = fs.readFileSync(WORKFLOW_PATH, "utf-8");
+    const workflow = YAML.parse(rawYaml);
+
+    expect(workflow.on.workflow_dispatch).toBeDefined();
+    expect(workflow.on.workflow_dispatch.inputs).toBeDefined();
+
+    const envInput = workflow.on.workflow_dispatch.inputs.environment;
+    expect(envInput).toBeDefined();
+    expect(envInput.description).toBe("Target deployment environment");
+    expect(envInput.required).toBe(true);
+    expect(envInput.default).toBe("preview");
+    expect(envInput.type).toBe("choice");
+    expect(envInput.options).toContain("preview");
+    expect(envInput.options).toContain("production");
+    expect(envInput.options).toHaveLength(2);
+  });
+
+  it("declares workflow permissions including 'pull-requests: write'", () => {
+    const rawYaml = fs.readFileSync(WORKFLOW_PATH, "utf-8");
+    const workflow = YAML.parse(rawYaml);
+
+    // Verify top-level or deploy job level permissions
+    const permissions = workflow.permissions || workflow.jobs?.deploy?.permissions;
+    expect(permissions).toBeDefined();
+    expect(permissions["pull-requests"]).toBe("write");
+    expect(permissions.contents).toBe("read");
+    expect(permissions.issues).toBe("write");
+  });
+
+  it("routes deployment environment considering workflow_dispatch inputs or target branch", () => {
+    const rawYaml = fs.readFileSync(WORKFLOW_PATH, "utf-8");
+    const workflow = YAML.parse(rawYaml);
+    const steps: Array<{
+      run?: string;
+      if?: string;
+      [key: string]: unknown;
+    }> = workflow.jobs.deploy.steps;
+
+    const pullPreview = steps.find(
+      (s) => s.run?.includes("vercel pull") && s.run?.includes("environment=preview")
+    );
+    expect(pullPreview?.if).toContain("github.event_name == 'workflow_dispatch'");
+    expect(pullPreview?.if).toContain("inputs.environment == 'preview'");
+
+    const pullProd = steps.find(
+      (s) => s.run?.includes("vercel pull") && s.run?.includes("environment=production")
+    );
+    expect(pullProd?.if).toContain("github.event_name == 'workflow_dispatch'");
+    expect(pullProd?.if).toContain("inputs.environment == 'production'");
+  });
+
+  it("configures sticky PR preview commenter step using actions/github-script@v7 with unique marker", () => {
+    const rawYaml = fs.readFileSync(WORKFLOW_PATH, "utf-8");
+    const workflow = YAML.parse(rawYaml);
+    const steps: Array<{
+      id?: string;
+      name?: string;
+      uses?: string;
+      with?: { script?: string; [key: string]: unknown };
+      if?: string;
+      [key: string]: unknown;
+    }> = workflow.jobs.deploy.steps;
+
+    const commentStep = steps.find((s) => s.uses?.startsWith("actions/github-script"));
+    expect(commentStep).toBeDefined();
+    expect(commentStep?.uses).toBe("actions/github-script@v7");
+
+    // Guard conditions: runs on pull_request when can_deploy is true and preview url is present
+    expect(commentStep?.if).toContain("github.event_name == 'pull_request'");
+    expect(commentStep?.if).toContain("steps.check-creds.outputs.can_deploy == 'true'");
+    expect(commentStep?.if).toContain("steps.deploy-preview.outputs.url != ''");
+
+    const script = commentStep?.with?.script;
+    expect(typeof script).toBe("string");
+
+    // Unique marker
+    expect(script).toContain("<!-- vercel-preview-deployment-comment -->");
+
+    // Markdown formatting with preview URL, commit SHA, and timestamp
+    expect(script).toContain("steps.deploy-preview.outputs.url");
+    expect(script).toMatch(/sha/i);
+    expect(script).toMatch(/timestamp|Date/i);
+
+    // Sticky comment pattern: search existing comments, then updateComment or createComment
+    expect(script).toContain("listComments");
+    expect(script).toMatch(/find\s*\(.*includes\s*\(\s*(marker|['"]<!-- vercel-preview-deployment-comment -->['"])\s*\)/);
+    expect(script).toContain("updateComment");
+    expect(script).toContain("createComment");
+  });
+});
