@@ -48,7 +48,7 @@ const RECIPES: RecipeDemo[] = [
       src: "/images/caster-branch.svg",
       opacity: 0.75,
     },
-    penumbra: 0.025,
+    penumbra: 24,
     contactHardening: true,
     shadowOpacity: 0.65,
     motion: "smooth",
@@ -64,7 +64,7 @@ export function HeroSection() {
         src: "/images/caster-branch.svg",
         opacity: 0.75,
       }}
-      penumbra={0.025}
+      penumbra={24}
       contactHardening={true}
       motion="smooth"
       className="relative min-h-[500px] w-full"
@@ -90,7 +90,7 @@ export function HeroSection() {
       scale: 2.5,
       speed: 0.6,
     },
-    penumbra: 0.04,
+    penumbra: 28,
     contactHardening: false,
     shadowOpacity: 0.5,
     motion: {
@@ -113,7 +113,7 @@ export function StudioKomorebiHero() {
         speed: 0.6,
       }}
       shadowOpacity={0.5}
-      penumbra={0.04}
+      penumbra={28}
       contactHardening={false}
       motion={{
         preset: "inertial",
@@ -138,7 +138,7 @@ export function StudioKomorebiHero() {
       leafDensity: 5,
       swaySpeed: 0.8,
     },
-    penumbra: 0.02,
+    penumbra: 20,
     contactHardening: true,
     shadowOpacity: 0.7,
     motion: "bouncy",
@@ -155,7 +155,7 @@ export function BotanicalShowcase() {
         swaySpeed: 0.8,
       }}
       contactHardening={true}
-      penumbra={0.02}
+      penumbra={20}
       motion="bouncy"
       className="h-[500px] w-full"
     />
@@ -173,7 +173,7 @@ export function BotanicalShowcase() {
       src: "/images/caster-branch.svg",
       opacity: 0.8,
     },
-    penumbra: 0.03,
+    penumbra: 28,
     contactHardening: true,
     shadowOpacity: 0.6,
     motion: {
@@ -192,6 +192,7 @@ export function EditorialLongform() {
         type: "image",
         src: "/images/caster-branch.svg",
       }}
+      penumbra={28}
       motion={{
         preset: "smooth",
         scrollInfluence: 0.35, // 35% vertical scroll coupling
@@ -213,7 +214,7 @@ export function EditorialLongform() {
       src: "/images/caster-branch.svg",
       opacity: 0.8,
     },
-    penumbra: 0.025,
+    penumbra: 24,
     contactHardening: true,
     shadowOpacity: 0.65,
     motion: "snappy",
@@ -228,6 +229,7 @@ export function InteractiveCardHero() {
         type: "image",
         src: "/images/caster-branch.svg",
       }}
+      penumbra={24}
       basePlateMotion={true} // Couples Base Plate to 3D perspective tilt
       motion="snappy"
       className="h-[500px] w-full rounded-2xl"
@@ -521,9 +523,9 @@ export default function GuidePage() {
                 <tr>
                   <td className="py-3 px-4 text-emerald-400 font-semibold">penumbra</td>
                   <td className="py-3 px-4 text-zinc-400">number</td>
-                  <td className="py-3 px-4 text-zinc-400">0.02</td>
+                  <td className="py-3 px-4 text-zinc-400">24</td>
                   <td className="py-3 px-4 font-sans">
-                    Diffusion softness radius of shadow boundaries (typical: 0.005 to 0.06).
+                    Diffusion softness radius of shadow boundaries in pixels (typical: 12 to 48; auto-scales normalized fractions &le; 1.0).
                   </td>
                 </tr>
                 <tr>

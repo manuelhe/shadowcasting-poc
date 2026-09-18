@@ -174,13 +174,16 @@ export function renderCanvas2dFallback({
   ambientScale = 1.0,
   shadowColor = "#000000",
 }: Canvas2dFallbackOptions): React.ReactElement<Record<string, unknown>> {
+  const resolvedBlur =
+    penumbra > 0 && penumbra <= 1.0 ? Math.round(penumbra * 1000) : penumbra;
+
   return (
     <Canvas2dShadowEngine
       baseImage={basePlate}
       casterImage={casterSrc}
       offsetX={offsetX}
       offsetY={offsetY}
-      blurRadius={penumbra}
+      blurRadius={resolvedBlur}
       shadowOpacity={shadowOpacity}
       shadowColor={shadowColor}
       ambientScale={ambientScale}
@@ -314,9 +317,14 @@ export function resolveShadowEngine({
   const extraOffsetY = offset?.y ?? 0;
   const offsetX = (isDynamicMotion ? motionOutput.shadowOffsetX : lightDirection[0]) + extraOffsetX;
   const offsetY = (isDynamicMotion ? motionOutput.shadowOffsetY : lightDirection[1]) + extraOffsetY;
+
+  // Support both pixel values (typical: 12 to 64) and normalized UV fractions (e.g. 0.025 -> 25px)
+  const resolvedBasePenumbra =
+    penumbra > 0 && penumbra <= 1.0 ? Math.round(penumbra * 1000) : penumbra;
+
   const effectivePenumbra = isDynamicMotion
-    ? Math.round(penumbra * motionOutput.penumbraMultiplier)
-    : penumbra;
+    ? Math.round(resolvedBasePenumbra * motionOutput.penumbraMultiplier)
+    : resolvedBasePenumbra;
   const windAngle = isDynamicMotion
     ? 45 + motionOutput.shadowOffsetX * 1.5
     : 45;
