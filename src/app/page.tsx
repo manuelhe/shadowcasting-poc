@@ -31,6 +31,8 @@ import {
   Cpu,
   Trees,
   Zap,
+  FileCode,
+  Presentation,
 } from "lucide-react";
 
 const CASTERS: Record<
@@ -172,7 +174,23 @@ export default function Home() {
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-white shadow-md shadow-sky-500/20 transition active:scale-95"
             >
               <BookOpen className="w-3.5 h-3.5" />
-              <span>Executive Conclusions ↗</span>
+              <span>Conclusions ↗</span>
+            </Link>
+
+            <Link
+              href="/guide"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-zinc-900 hover:bg-zinc-800 text-emerald-400 border border-emerald-500/30 transition active:scale-95"
+            >
+              <FileCode className="w-3.5 h-3.5" />
+              <span>Guide ↗</span>
+            </Link>
+
+            <Link
+              href="/presentation"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-zinc-900 hover:bg-zinc-800 text-purple-400 border border-purple-500/30 transition active:scale-95"
+            >
+              <Presentation className="w-3.5 h-3.5" />
+              <span>Presentation ↗</span>
             </Link>
 
             <a

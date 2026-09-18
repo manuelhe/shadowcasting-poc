@@ -59,6 +59,14 @@ describe("ShowcaseNav Component (Issue #38)", () => {
     const conclusionsEl = rootContainer.querySelector('a[href="/conclusions"]');
     expect(conclusionsEl).not.toBeNull();
     expect(conclusionsEl?.textContent?.trim()).toBe("Conclusions");
+
+    const guideEl = rootContainer.querySelector('a[href="/guide"]');
+    expect(guideEl).not.toBeNull();
+    expect(guideEl?.textContent?.trim()).toBe("Engineering Guide");
+
+    const presentationEl = rootContainer.querySelector('a[href="/presentation"]');
+    expect(presentationEl).not.toBeNull();
+    expect(presentationEl?.textContent?.trim()).toBe("Design Deck");
   });
 
   it("highlights /conclusions with active attributes and styles when pathname is /conclusions", async () => {

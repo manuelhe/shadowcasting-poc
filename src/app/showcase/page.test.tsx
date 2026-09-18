@@ -112,7 +112,7 @@ describe("Showcase Gallery Hub & Shell Navigation (Issue #22)", () => {
     expect(nav).not.toBeNull();
 
     const links = Array.from(rootContainer.querySelectorAll("a"));
-    expect(links).toHaveLength(7);
+    expect(links).toHaveLength(9);
 
     const hrefs = links.map((l) => l.getAttribute("href"));
     expect(hrefs).toEqual([
@@ -123,6 +123,8 @@ describe("Showcase Gallery Hub & Shell Navigation (Issue #22)", () => {
       "/showcase/scroll-top",
       "/showcase/scroll-mid",
       "/conclusions",
+      "/guide",
+      "/presentation",
     ]);
 
     const labels = links.map((l) => l.textContent?.trim());
@@ -134,6 +136,8 @@ describe("Showcase Gallery Hub & Shell Navigation (Issue #22)", () => {
       "Scroll Top",
       "Scroll Mid",
       "Conclusions",
+      "Engineering Guide",
+      "Design Deck",
     ]);
   });
 
