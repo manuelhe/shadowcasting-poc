@@ -67,6 +67,7 @@ The `<ShadowBackground />` component extends `React.HTMLAttributes<HTMLDivElemen
 | `virtualLight` | `VirtualLightOptions` | `{ elevation: 1.0, angle: 45, distance: 1.0 }` | No | Coordinate options: `{ elevation?: number; angle?: number; distance?: number }`. Projected into dynamic directional light vector and penumbra dilation. |
 | `basePlateMotion` | `boolean` | `false` | No | Coupled motion toggle. When false (default), Base Plate is stationary ([ADR-0002](../adr/0002-decoupled-transparent-shadow-layer.md)). When true, Base Plate shifts with parallax. Default: `false`. |
 | `contactHardening` | `boolean` | `true` | No | Optical contact hardening toggle. When true, produces distance-proportional sharpness near contact surfaces and progressive softening at distance. Default: `true`. |
+| `contactPoint` | `ContactPoint` | `"top-left"` (or `[0.1, 0.1]`) | No | Anchor coordinate where the caster contacts the substrate plane. Accepts any of the 7 `ContactPointPreset` strings (e.g. `"top-left"`, `"bottom-center"`) or a custom normalized `[u, v]` tuple (e.g. `[0.2, 0.8]`). Resolves default to `[0.1, 0.1]`. |
 | `lightDirection` | `[number, number, number]` | `[20, 25, 1]` | No | Initial static directional light vector `[X, Y, Z]` when interactive motion is dormant. Default: `[20, 25, 1]`. |
 | `fit` | `"cover" \| "contain" \| "fill"` | `"cover"` | No | CSS object-fit mode applied to the Base Plate and poster images. Default: `"cover"`. |
 | `blendMode` | `"multiply" \| "normal"` | `"multiply"` | No | CSS `mix-blend-mode` applied to the decoupled transparent shadow layer. Default: `"multiply"`. |
@@ -245,6 +246,104 @@ export interface VirtualLightOptions {
   angle?: number;
   /** Virtual distance factor from caster to substrate (default: 1.0) */
   distance?: number;
+}
+```
+
+---
+
+## Contact Point Configuration & Preset Mapping (`ContactPoint`, `ContactPointPreset`)
+
+Physical **Contact Hardening** models the optical reality that a shadow is crispest where a physical caster touches or anchors to the substrate plane, softening progressively as height and distance increase. In `<ShadowBackground />`, the contact point coordinate informs the GPU Poisson shader (`u_contactPoint` uniform) to shift the sharpness focus.
+
+### `ContactPointPreset` & `ContactPoint` Types
+
+```typescript
+export type ContactPointPreset =
+  | "top-left"
+  | "top-center"
+  | "top-right"
+  | "center"
+  | "bottom-left"
+  | "bottom-center"
+  | "bottom-right";
+
+export type ContactPoint = [number, number] | ContactPointPreset;
+```
+
+The pure coordinate resolver maps any preset or custom `[u, v]` tuple into normalized texture coordinates:
+
+```typescript
+export function resolveContactPoint(contactPoint?: ContactPoint): [number, number];
+```
+
+### 7-Preset Coordinate Mapping Table
+
+| Preset | Normalized UV `[u, v]` | Description & Recommended Use Case |
+| :--- | :--- | :--- |
+| `"top-left"` | `[0.1, 0.1]` | **Default anchor**. Caster originates from top-left (e.g. hanging overhead branches, downward botanical foliage). |
+| `"top-center"` | `[0.5, 0.1]` | Central overhead light fixture, chandelier, or centered top canopy. |
+| `"top-right"` | `[0.9, 0.1]` | Overhead branch or awning originating from the top-right quadrant. |
+| `"center"` | `[0.5, 0.5]` | Central floating object, hovering emblem, or centered botanical arrangement with radial softening. |
+| `"bottom-left"` | `[0.1, 0.9]` | Grounded vegetation, grass stems, or rising shrubs originating from bottom-left corner. |
+| `"bottom-center"` | `[0.5, 1.0]` | Grounded tree trunk, botanical plant, or floral vase rooted at bottom center of viewport. |
+| `"bottom-right"` | `[0.9, 0.9]` | Grounded foliage or structural base originating from bottom-right corner. |
+
+### Code Examples
+
+#### Example 1: Named Preset String
+
+Anchor a grounded botanical caster to the bottom center of the viewport substrate:
+
+```tsx
+import { ShadowBackground } from "@/components/ShadowBackground";
+
+export function GroundedBotanicalHero() {
+  return (
+    <ShadowBackground
+      basePlate="/images/wood-background.webp"
+      caster={{
+        type: "image",
+        src: "/images/grass.svg",
+      }}
+      contactHardening={true}
+      contactPoint="bottom-center"
+      penumbra={24}
+      className="relative h-[640px] w-full"
+    >
+      <div className="relative z-10 p-8 text-white">
+        <h1 className="text-4xl font-bold">Grounded Botanical Scene</h1>
+      </div>
+    </ShadowBackground>
+  );
+}
+```
+
+#### Example 2: Custom `[x, y]` UV Tuple
+
+Provide an exact normalized coordinate tuple for custom procedural or asymmetrical compositions:
+
+```tsx
+import { ShadowBackground } from "@/components/ShadowBackground";
+
+export function CustomAnchorScene() {
+  return (
+    <ShadowBackground
+      basePlate="/images/decayedpaint-background.webp"
+      caster={{
+        type: "branch",
+        depth: 4,
+        leafDensity: 5,
+      }}
+      contactHardening={true}
+      contactPoint={[0.25, 0.85]}
+      penumbra={28}
+      className="relative h-[640px] w-full"
+    >
+      <div className="relative z-10 p-8 text-white">
+        <h1 className="text-4xl font-bold">Custom Anchor Foliage</h1>
+      </div>
+    </ShadowBackground>
+  );
 }
 ```
 

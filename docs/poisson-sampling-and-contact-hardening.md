@@ -74,32 +74,40 @@ lookups     points are spaced         is applied           the ground vs. the ai
 
 ### The Physical Optical Reality: Contact Hardening
 
-In optical physics, light sources (such as the sun or ceiling luminaires) are area lights rather than infinitesimal pinpricks. As a result, shadows cast by physical occluders exhibit two zones:
+In optical physics, light sources (such as the sun or ceiling luminaires) are area lights rather than infinitesimal pinpricks. As a result, shadows cast by physical objects exhibit two zones:
 1. **Umbra**: The central region where the light source is completely blocked.
 2. **Penumbra**: The transitional fringe where the light source is only partially occluded.
 
-When an occluder is close to a receiving surface, ray divergence is minimal, creating a crisp, high-contrast silhouette. As distance from the receiving surface increases, light rays wrap around the edges, widening the penumbra into a gentle, soft gradient. This phenomenon is known as **Contact Hardening**.
+When a **Shadow Caster** is close to a receiving surface, ray divergence is minimal, creating a crisp, high-contrast silhouette. As distance from the receiving surface increases, light rays wrap around the edges, widening the penumbra into a gentle, soft gradient. This phenomenon is known as **Contact Hardening**.
 
 ### Distance from Anchor: Virtual 3D Elevation
 
 In our 2.5D architecture, we deliberately avoid loading multi-megabyte 3D polygon meshes with depth buffers. Instead, the **Shadow Caster** is represented as a lightweight alpha mask (such as [`public/images/grass.svg`](../public/images/grass.svg)).
 
-To simulate 3D elevation without a 3D geometry engine, the WebGL fragment shader assigns an **Anchor Point**—the coordinate where the physical object is rooted to the substrate plane (default: `vec2(0.1, 0.1)` in UV space):
+To simulate 3D elevation without a 3D geometry engine, the WebGL fragment shader evaluates distance from an **Anchor Point**—the physical coordinate where the caster contacts the substrate plane. This coordinate is dynamically supplied to the GPU via the `u_contactPoint` uniform (`vec2`), defaulting to `vec2(0.1, 0.1)` (the `"top-left"` preset) in UV texture space:
 
-$$\text{dist} = \text{clamp}(|\mathbf{uv}_{\text{caster}} - (0.1, 0.1)| \times 1.5, 0.15, 1.8)$$
+$$\text{dist} = \text{clamp}(|\mathbf{uv}_{\text{caster}} - \mathbf{u}_{\text{contactPoint}}| \times 1.5, 0.15, 1.8)$$
 
-* **At the stem base** (`dist` $\approx 0.15$): The shadow caster is virtually touching the **Base Plate**.
-* **At the distant leaves/grass blades** (`dist` $\approx 1.8$): The caster has extended upward into the air, increasing distance to the substrate.
+* **At the contact point** (`dist` $\approx 0.15$): The shadow caster is virtually touching the **Base Plate**, resulting in minimum blur and maximum sharpness.
+* **At the distant leaves/tips** (`dist` $\approx 1.8$): The caster has extended upward into the air, expanding distance to the substrate and producing wide, soft optical diffusion.
+
+Configuring custom contact points shifts the sharpness focal point across the composition:
+* **Overhead Canopies (`"top-left" [0.1, 0.1]`, `"top-center" [0.5, 0.1]`, `"top-right" [0.9, 0.1]`):** Focuses sharpness near the top edges, simulating hanging vines, awnings, or downward foliage.
+* **Grounded Casters (`"bottom-center" [0.5, 1.0]`, `"bottom-left" [0.1, 0.9]`, `"bottom-right" [0.9, 0.9]`):** Grounds botanical shrubs, upright trees, or grass tufts at the floor level.
+* **Suspended Elements (`"center" [0.5, 0.5]`):** Creates symmetrical radial diffusion outward from a central hovering emblem.
 
 ### Kernel Radius Expansion: Variable Penumbra
 
 In digital image processing, a blur is produced by convolving neighboring pixels within a specified radius $R$ (the "kernel radius"). 
 
-Instead of maintaining a static $R$ across the viewport, the shader scales the kernel radius by the computed distance factor:
+Instead of maintaining a static $R$ across the viewport, the shader scales the kernel radius by the computed distance factor relative to `u_contactPoint`:
 
 ```glsl
 // GLSL snippet from WebGlShadowEngine.tsx
-float dist = clamp(length(casterUV - vec2(0.1, 0.1)) * 1.5, 0.15, 1.8);
+uniform vec2 u_contactPoint; // Normalized [u, v] contact coordinate
+
+// Distance from configurable contact point
+float dist = clamp(length(casterUV - u_contactPoint) * 1.5, 0.15, 1.8);
 float penumbraFactor = mix(1.0, dist, u_contactHardening);
 
 vec2 texelSize = 1.0 / u_resolution;
@@ -107,8 +115,8 @@ vec2 radiusUV = texelSize * (u_blurRadius * penumbraFactor);
 ```
 
 When `u_contactHardening` is active ($1.0$):
-* Near the anchor, `radiusUV` shrinks, producing sharp, dark edges.
-* Far from the anchor, `radiusUV` expands up to $1.8\times$, scattering shadow intensity into a wide, soft penumbra.
+* Near `u_contactPoint`, `radiusUV` shrinks, producing sharp, high-contrast silhouette edges.
+* Far from `u_contactPoint`, `radiusUV` expands up to $1.8\times$, scattering shadow intensity into a wide, soft penumbra.
 
 ### 12-Tap Golden-Spiral Poisson-Disk Sampling
 
@@ -133,8 +141,8 @@ Here is the exact implementation in [`src/components/engines/WebGlShadowEngine.t
 vec2 centeredUV = v_uv - vec2(0.5);
 vec2 casterUV = (centeredUV - u_offset) / u_scale + vec2(0.5);
 
-// 1. Calculate distance from physical anchor (0.1, 0.1)
-float dist = clamp(length(casterUV - vec2(0.1, 0.1)) * 1.5, 0.15, 1.8);
+// 1. Calculate distance from physical contact point (u_contactPoint)
+float dist = clamp(length(casterUV - u_contactPoint) * 1.5, 0.15, 1.8);
 float penumbraFactor = mix(1.0, dist, u_contactHardening);
 
 // 2. Expand kernel radius in UV space
@@ -278,8 +286,8 @@ We run a single screen-aligned WebGL quad using a **12-tap mathematical formula*
 
 ### Anticipated Questions & Objections (FAQ)
 
-#### Q1: "Can design adjust how blurry or sharp the shadow gets?"
-**Answer**: Yes. We expose `penumbra` (base softening in pixels), `shadowOpacity`, and `contactHardening` (a 0.0 to 1.0 toggle or multiplier) as standard React props on `<ShadowBackground />`. Designers can fine-tune the exact lighting mood directly in code or via our Playground HUD (`/`).
+#### Q1: "Can design adjust how blurry or sharp the shadow gets, or where the contact point is?"
+**Answer**: Yes. We expose `penumbra` (base softening in pixels), `shadowOpacity`, `contactHardening` (a boolean toggle), and `contactPoint` (accepting any of the 7 named presets or arbitrary `[x, y]` UV coordinates) as standard React props on `<ShadowBackground />`. Designers and developers can fine-tune the exact lighting mood and sharpness focus directly in code or via our Playground HUD (`/`).
 
 #### Q2: "What happens if a user's browser or device doesn't support WebGL?"
 **Answer**: Our system includes an automated **Degradation Tier Ladder** ([ADR-0001](adr/0001-shadowcasting-component-architecture.md)). If WebGL is unavailable or blocked, it seamlessly falls back to a Canvas 2D engine (`Canvas2dShadowEngine`), and if hardware acceleration is entirely absent, it displays a zero-JS **Static Poster Fallback** rendered during SSR.

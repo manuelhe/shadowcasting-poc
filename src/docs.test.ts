@@ -27,6 +27,9 @@ import {
   DegradationTier,
   MotionPreset,
   MotionConfig,
+  ContactPoint,
+  ContactPointPreset,
+  resolveContactPoint,
 } from "./components/ShadowBackground";
 import { SPRING_PRESETS, SpringConfig } from "./lib/motion/spring";
 import { useMotionController } from "./hooks/useMotionController";
@@ -38,6 +41,7 @@ const EDITORIAL_GUIDE_PATH = path.join(REPO_ROOT, "docs/guides/01-editorial-hero
 const API_REF_PATH = path.join(REPO_ROOT, "docs/guides/api-reference.md");
 const CONCLUSIONS_PATH = path.join(REPO_ROOT, "docs/conclusions.md");
 const VERCEL_GUIDE_PATH = path.join(REPO_ROOT, "docs/guides/vercel-deployment-pipeline.md");
+const POISSON_GUIDE_PATH = path.join(REPO_ROOT, "docs/poisson-sampling-and-contact-hardening.md");
 
 /**
  * Shared helper to assert that content adheres to canonical domain terminology
@@ -545,7 +549,7 @@ describe("Comprehensive API Reference Integrity & Contract Parity (docs/guides/a
   it("asserts all documented <ShadowBackground /> prop names match actual ShadowBackgroundProps interface", () => {
     const apiRefContent = fs.readFileSync(API_REF_PATH, "utf-8");
 
-    // All documented props from Ticket #30 requirements
+    // All documented props from Ticket #30 & #55 requirements
     const documentedProps = [
       "basePlate",
       "poster",
@@ -559,6 +563,7 @@ describe("Comprehensive API Reference Integrity & Contract Parity (docs/guides/a
       "virtualLight",
       "basePlateMotion",
       "contactHardening",
+      "contactPoint",
       "lightDirection",
       "fit",
       "blendMode",
@@ -589,6 +594,7 @@ describe("Comprehensive API Reference Integrity & Contract Parity (docs/guides/a
       shadowOpacity: 0.65,
       basePlateMotion: false,
       contactHardening: true,
+      contactPoint: "top-left",
       lightDirection: [20, 25, 1],
       fit: "cover",
       blendMode: "multiply",
@@ -603,6 +609,72 @@ describe("Comprehensive API Reference Integrity & Contract Parity (docs/guides/a
     expect(element.props.basePlate).toBe("/images/wood-background.webp");
     expect(element.props.basePlateMotion).toBe(false);
     expect(element.props.contactHardening).toBe(true);
+    expect(element.props.contactPoint).toBe("top-left");
+  });
+
+  it("asserts documented ContactPoint and ContactPointPreset values match exports and coordinate mappings", () => {
+    const apiRefContent = fs.readFileSync(API_REF_PATH, "utf-8");
+
+    // Type exports documented
+    expect(apiRefContent).toContain("ContactPointPreset");
+    expect(apiRefContent).toContain("ContactPoint");
+    expect(apiRefContent).toContain("resolveContactPoint");
+
+    // All 7 presets documented
+    const expectedPresets: ContactPointPreset[] = [
+      "top-left",
+      "top-center",
+      "top-right",
+      "center",
+      "bottom-left",
+      "bottom-center",
+      "bottom-right",
+    ];
+
+    for (const preset of expectedPresets) {
+      expect(
+        apiRefContent,
+        `api-reference.md must document ContactPointPreset "${preset}"`
+      ).toContain(`"${preset}"`);
+
+      // Verify coordinate mapping in documentation matches resolveContactPoint output
+      const resolved = resolveContactPoint(preset);
+      expect(apiRefContent).toContain(`[${resolved[0].toFixed(1)}, ${resolved[1].toFixed(1)}]`);
+    }
+
+    // Assert code examples exist for both preset string and custom [x, y] UV tuple
+    expect(apiRefContent).toContain('contactPoint="bottom-center"');
+    expect(apiRefContent).toContain("contactPoint={[0.25, 0.85]}");
+
+    // Verify TypeScript contract parity with tuple and preset
+    const tupleContactPoint: ContactPoint = [0.25, 0.85];
+    const presetContactPoint: ContactPoint = "bottom-center";
+    expect(resolveContactPoint(tupleContactPoint)).toEqual([0.25, 0.85]);
+    expect(resolveContactPoint(presetContactPoint)).toEqual([0.5, 1.0]);
+  });
+
+  it("asserts docs/poisson-sampling-and-contact-hardening.md documents u_contactPoint uniform and custom contact points", () => {
+    expect(fs.existsSync(POISSON_GUIDE_PATH)).toBe(true);
+    const poissonContent = fs.readFileSync(POISSON_GUIDE_PATH, "utf-8");
+
+    // Uniform and distance equation
+    expect(poissonContent).toContain("u_contactPoint");
+    expect(poissonContent).toContain("uniform vec2 u_contactPoint");
+    expect(poissonContent).toContain("length(casterUV - u_contactPoint)");
+
+    // Anchor explanation with preset shifting
+    expect(poissonContent).toContain("top-left");
+    expect(poissonContent).toContain("bottom-center");
+    expect(poissonContent).toContain("center");
+
+    // Canonical vocabulary compliance (check body before glossary table)
+    const glossaryIndex = poissonContent.indexOf("## 6. Domain Vocabulary Quick Reference");
+    expect(glossaryIndex).toBeGreaterThan(0);
+    const bodyBeforeGlossary = poissonContent.slice(0, glossaryIndex);
+    assertCanonicalVocabulary(bodyBeforeGlossary);
+
+    // Markdown links validation
+    validateMarkdownLinks(POISSON_GUIDE_PATH, poissonContent);
   });
 
   it("asserts documented MotionPreset values match actual MotionPreset union and SPRING_PRESETS exports", () => {
