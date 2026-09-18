@@ -217,7 +217,7 @@ describe("Documentation Integrity Suite (src/docs.test.ts)", () => {
     expect(checkedLinks).toContain("docs/adr/README.md");
     expect(checkedLinks).toContain("public/images/wood-background.webp");
     expect(checkedLinks).toContain("public/images/decayedpaint-background.webp");
-    expect(checkedLinks).toContain("public/images/shadow-1.webp");
+    expect(checkedLinks).toContain("public/images/grass.svg");
     expect(checkedLinks).toContain("public/images/shadow-2.webp");
   });
 
@@ -284,7 +284,7 @@ describe("Documentation Integrity Suite (src/docs.test.ts)", () => {
       poster: "/images/wood-background.webp",
       caster: {
         type: "image",
-        src: "/images/shadow-1.webp",
+        src: "/images/grass.svg",
       },
       contactHardening: true,
       penumbra: 24,
@@ -578,7 +578,7 @@ describe("Comprehensive API Reference Integrity & Contract Parity (docs/guides/a
     const fullProps: ShadowBackgroundProps = {
       basePlate: "/images/wood-background.webp",
       poster: "/images/wood-background.webp",
-      caster: { type: "image", src: "/images/shadow-1.webp" },
+      caster: { type: "image", src: "/images/grass.svg" },
       tier: "auto",
       motion: "smooth",
       penumbra: 24,
@@ -693,7 +693,7 @@ describe("Comprehensive API Reference Integrity & Contract Parity (docs/guides/a
     expect(apiRefContent).toContain('"branch"');
 
     // Verify TypeScript compatibility
-    const imageCaster: ShadowCasterConfig = { type: "image", src: "/images/shadow-1.webp", opacity: 0.8 };
+    const imageCaster: ShadowCasterConfig = { type: "image", src: "/images/grass.svg", opacity: 0.8 };
     const komorebiCaster: ShadowCasterConfig = { type: "komorebi", density: 1.2, contrast: 1.4, scale: 3.5, speed: 0.5 };
     const branchCaster: ShadowCasterConfig = { type: "branch", depth: 4, leafDensity: 5, swaySpeed: 0.7 };
 

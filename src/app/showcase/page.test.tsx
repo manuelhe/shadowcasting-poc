@@ -95,7 +95,7 @@ describe("Showcase Gallery Hub & Shell Navigation (Issue #22)", () => {
     // Verify asset pairings and techniques are listed in each card
     expect(rootContainer.textContent).toContain("wood-background.webp");
     expect(rootContainer.textContent).toContain("decayedpaint-background.webp");
-    expect(rootContainer.textContent).toContain("shadow-1.webp");
+    expect(rootContainer.textContent).toContain("grass.svg");
     expect(rootContainer.textContent).toContain("shadow-2.webp");
     expect(rootContainer.textContent).toContain("Decoupled Static Base Plate");
     expect(rootContainer.textContent).toContain("Poisson Disk Soft Shadow");

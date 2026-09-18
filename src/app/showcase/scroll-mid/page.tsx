@@ -127,7 +127,7 @@ export default function ScrollMidShowcasePage() {
           {/* Dynamic Interactive Shadow Canvas Background with Layered Children */}
           <ShadowBackground
             basePlate="/images/decayedpaint-background.webp"
-            caster={{ type: "image", src: "/images/shadow-1.webp" }}
+            caster={{ type: "image", src: "/images/grass.svg" }}
             className="absolute inset-0"
             tier="auto"
             offset={{ x: 0, y: Math.round(midParallaxOffset) }}
@@ -194,7 +194,7 @@ export default function ScrollMidShowcasePage() {
                 When examining weathered plaster and decayed lead coatings under grazing laboratory light, one observes that shadows rarely behave like solid flat cuts. Instead, contact hardening manifests at the immediate point of occlusion, while ray divergence blurs distant edges into an atmospheric penumbra. By employing a multi-pass Gaussian convolution filter calibrated to a 26px radius, the dynamic shadow canvas produces the delicate gradient transition characteristic of indirect skylight.
               </p>
               <p>
-                Crucially, this synthesis does not mutate or repaint the underlying substrate bitmap. The photographic Base Plate (<code className="text-amber-300 font-mono text-sm bg-zinc-900 px-2 py-0.5 rounded border border-zinc-800">decayedpaint-background.webp</code>) remains immutable in GPU texture memory, ensuring that the browser never incurs expensive tile re-rasterization during active viewport scrolling. The shadow layer alone (<code className="text-sky-300 font-mono text-sm bg-zinc-900 px-2 py-0.5 rounded border border-zinc-800">shadow-1.webp</code>) recalculates its perspective transform and multiply blend modes.
+                Crucially, this synthesis does not mutate or repaint the underlying substrate bitmap. The photographic Base Plate (<code className="text-amber-300 font-mono text-sm bg-zinc-900 px-2 py-0.5 rounded border border-zinc-800">decayedpaint-background.webp</code>) remains immutable in GPU texture memory, ensuring that the browser never incurs expensive tile re-rasterization during active viewport scrolling. The shadow layer alone (<code className="text-sky-300 font-mono text-sm bg-zinc-900 px-2 py-0.5 rounded border border-zinc-800">grass.svg</code>) recalculates its perspective transform and multiply blend modes.
               </p>
             </div>
           </div>
@@ -254,7 +254,7 @@ export default function ScrollMidShowcasePage() {
               </div>
               <div className="p-4 sm:p-5 flex items-center justify-between">
                 <span className="text-sm font-medium text-zinc-300">Shadow Caster Texture</span>
-                <span className="text-xs font-mono text-sky-300">shadow-1.webp</span>
+                <span className="text-xs font-mono text-sky-300">grass.svg</span>
               </div>
               <div className="p-4 sm:p-5 flex items-center justify-between">
                 <span className="text-sm font-medium text-zinc-300">Motion Controller Preset</span>

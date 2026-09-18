@@ -62,7 +62,7 @@ describe("Mid-Article Scroll-Animated Feature Showcase (/showcase/scroll-mid - I
     vi.restoreAllMocks();
   });
 
-  it("renders mid-page shadow break with <ShadowBackground /> pairing decayedpaint-background.webp and shadow-1.webp", async () => {
+  it("renders mid-page shadow break with <ShadowBackground /> pairing decayedpaint-background.webp and grass.svg", async () => {
     const motionSpy = vi.spyOn(useMotionControllerModule, "useMotionController");
 
     await act(async () => {
@@ -103,16 +103,16 @@ describe("Mid-Article Scroll-Animated Feature Showcase (/showcase/scroll-mid - I
     expect(bgContainer?.className).toContain("absolute");
     expect(bgContainer?.className).toContain("inset-0");
 
-    // 5. Verify resolveShadowEngine resolves shadow-1.webp caster with penumbra 26 and opacity 0.85
+    // 5. Verify resolveShadowEngine resolves grass.svg caster with penumbra 26 and opacity 0.85
     const fallbackEngine = resolveShadowEngine({
-      caster: { type: "image", src: "/images/shadow-1.webp" },
+      caster: { type: "image", src: "/images/grass.svg" },
       basePlate: "/images/decayedpaint-background.webp",
       shadowOpacity: 0.85,
       penumbra: 26,
       shadowColor: "#050505",
       useCanvasFallback: true,
     });
-    expect(fallbackEngine.props.casterImage).toBe("/images/shadow-1.webp");
+    expect(fallbackEngine.props.casterImage).toBe("/images/grass.svg");
     expect(fallbackEngine.props.blurRadius).toBe(26);
     expect(fallbackEngine.props.shadowOpacity).toBe(0.85);
     expect(fallbackEngine.props.shadowColor).toBe("#050505");
@@ -166,7 +166,7 @@ describe("Mid-Article Scroll-Animated Feature Showcase (/showcase/scroll-mid - I
     // Section 02
     expect(concluding?.textContent).toContain("II. The Physics of Decoupled Occlusion");
     expect(concluding?.textContent).toContain("decayedpaint-background.webp");
-    expect(concluding?.textContent).toContain("shadow-1.webp");
+    expect(concluding?.textContent).toContain("grass.svg");
 
     // Technical specifications grid
     expect(concluding?.textContent).toContain("100px");

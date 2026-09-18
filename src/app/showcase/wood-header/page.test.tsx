@@ -72,7 +72,7 @@ describe("Architectural Wood & Stylized Serif Typography Showcase (Issue #23)", 
     expect(heroSection?.className).toContain("bg-neutral-950");
   });
 
-  it("embeds <ShadowBackground /> configured with wood-background.webp and shadow-1.webp", async () => {
+  it("embeds <ShadowBackground /> configured with wood-background.webp and grass.svg", async () => {
     await act(async () => {
       root?.render(<WoodHeaderShowcasePage />);
     });
@@ -107,7 +107,7 @@ describe("Architectural Wood & Stylized Serif Typography Showcase (Issue #23)", 
     // Architectural badges and specifications
     expect(rootContainer.textContent).toContain("STUDY 01 // ARCHITECTURAL MATERIALITY");
     expect(rootContainer.textContent).toContain("BASE: WOOD-BACKGROUND.WEBP");
-    expect(rootContainer.textContent).toContain("CASTER: SHADOW-1.WEBP");
+    expect(rootContainer.textContent).toContain("CASTER: GRASS.SVG");
     expect(rootContainer.textContent).toContain("PENUMBRA: 28PX");
   });
 

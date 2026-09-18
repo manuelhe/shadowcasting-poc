@@ -275,7 +275,7 @@ export function ProductionHeroWithHUD() {
       <ShadowBackground
         basePlate="/images/wood-background.webp"
         poster="/images/wood-background.webp"
-        caster={{ type: "image", src: "/images/shadow-1.webp" }}
+        caster={{ type: "image", src: "/images/grass.svg" }}
         penumbra={24}
         contactHardening={true}
         onTierChange={(tier) => console.log("Degradation tier active:", tier)}

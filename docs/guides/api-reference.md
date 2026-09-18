@@ -109,7 +109,7 @@ export interface RasterCasterConfig {
   basePlate="/images/wood-background.webp"
   caster={{
     type: "image",
-    src: "/images/shadow-1.webp",
+    src: "/images/grass.svg",
     opacity: 0.8,
   }}
 />
@@ -459,7 +459,7 @@ export default function EditorialHero() {
       poster="/images/wood-background.webp"
       caster={{
         type: "image",
-        src: "/images/shadow-1.webp",
+        src: "/images/grass.svg",
       }}
       motion="snappy"
       penumbra={24}
