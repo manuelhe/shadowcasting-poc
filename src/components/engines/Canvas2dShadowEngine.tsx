@@ -3,6 +3,10 @@
 import React, { useRef, useEffect } from "react";
 import { ShadowEngineProps } from "./CssShadowEngine";
 
+export interface Canvas2dShadowEngineProps extends ShadowEngineProps {
+  contactPoint?: [number, number];
+}
+
 export function Canvas2dShadowEngine({
   baseImage,
   casterImage,
@@ -12,8 +16,10 @@ export function Canvas2dShadowEngine({
   shadowOpacity,
   shadowColor = "#000000",
   ambientScale,
+  contactPoint: _contactPoint,
   onFrameStats,
-}: ShadowEngineProps) {
+}: Canvas2dShadowEngineProps) {
+  void _contactPoint;
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const baseImgRef = useRef<HTMLImageElement | null>(null);
   const casterImgRef = useRef<HTMLImageElement | null>(null);

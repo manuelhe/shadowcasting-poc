@@ -307,6 +307,7 @@ describe("Transparent Alpha Shadow Synthesis Engines & Zero-Base VRAM Mode", () 
       expect(uniforms["u_useBaseTexture"]).toBe(0.0);
       expect(uniforms["u_shadowColor"]).toEqual([1, 0, 0]);
       expect(uniforms["u_casterTexture"]).toBe(0);
+      expect(uniforms["u_contactPoint"]).toEqual([0.1, 0.1]);
 
       await act(async () => {
         root?.unmount();
@@ -419,6 +420,256 @@ describe("Transparent Alpha Shadow Synthesis Engines & Zero-Base VRAM Mode", () 
       container.remove();
       getContextSpy.mockRestore();
     });
+
+    it("queries and uploads u_contactPoint uniform with default [0.1, 0.1] when omitted", async () => {
+      const uniforms: Record<string, unknown> = {};
+      const mockGl = {
+        COLOR_BUFFER_BIT: 16384,
+        VERTEX_SHADER: 35633,
+        FRAGMENT_SHADER: 35632,
+        COMPILE_STATUS: 35713,
+        LINK_STATUS: 35714,
+        ARRAY_BUFFER: 34962,
+        STATIC_DRAW: 35044,
+        FLOAT: 5126,
+        TEXTURE_2D: 3553,
+        RGBA: 6408,
+        UNSIGNED_BYTE: 5121,
+        TEXTURE_WRAP_S: 10242,
+        TEXTURE_WRAP_T: 10243,
+        TEXTURE_MIN_FILTER: 10241,
+        TEXTURE_MAG_FILTER: 10240,
+        CLAMP_TO_EDGE: 33071,
+        LINEAR: 9729,
+        TRIANGLES: 4,
+        BLEND: 3042,
+        SRC_ALPHA: 770,
+        ONE_MINUS_SRC_ALPHA: 771,
+        TEXTURE0: 33984,
+        TEXTURE1: 33985,
+        drawingBufferWidth: 800,
+        drawingBufferHeight: 600,
+        createShader: vi.fn(() => ({})),
+        shaderSource: vi.fn(),
+        compileShader: vi.fn(),
+        getShaderParameter: vi.fn(() => true),
+        createProgram: vi.fn(() => ({})),
+        attachShader: vi.fn(),
+        linkProgram: vi.fn(),
+        getProgramParameter: vi.fn(() => true),
+        createBuffer: vi.fn(() => ({})),
+        bindBuffer: vi.fn(),
+        bufferData: vi.fn(),
+        getAttribLocation: vi.fn(() => 0),
+        enableVertexAttribArray: vi.fn(),
+        vertexAttribPointer: vi.fn(),
+        createTexture: vi.fn(() => ({})),
+        bindTexture: vi.fn(),
+        texImage2D: vi.fn(),
+        texParameteri: vi.fn(),
+        deleteProgram: vi.fn(),
+        deleteTexture: vi.fn(),
+        viewport: vi.fn(),
+        useProgram: vi.fn(),
+        activeTexture: vi.fn(),
+        getUniformLocation: vi.fn((_p, name: string) => name),
+        uniform1i: vi.fn((name: string, val: number) => {
+          uniforms[name] = val;
+        }),
+        uniform1f: vi.fn((name: string, val: number) => {
+          uniforms[name] = val;
+        }),
+        uniform2f: vi.fn((name: string, x: number, y: number) => {
+          uniforms[name] = [x, y];
+        }),
+        uniform3f: vi.fn((name: string, x: number, y: number, z: number) => {
+          uniforms[name] = [x, y, z];
+        }),
+        drawArrays: vi.fn(),
+        clearColor: vi.fn(),
+        clear: vi.fn(),
+        enable: vi.fn(),
+        blendFunc: vi.fn(),
+      };
+
+      const container = mockWindow.document.createElement("div");
+      mockWindow.document.body.appendChild(container);
+
+      const getContextSpy = vi
+        .spyOn(mockWindow.HTMLCanvasElement.prototype, "getContext")
+        .mockImplementation((contextId) => {
+          if (contextId === "webgl") {
+            return mockGl as unknown as MockContextReturn;
+          }
+          return null;
+        });
+
+      let root: ReturnType<typeof createRoot> | null = null;
+      await act(async () => {
+        root = createRoot(container as unknown as HTMLElement);
+        root.render(
+          <WebGlShadowEngine
+            casterImage="/images/caster.png"
+            offsetX={0}
+            offsetY={0}
+            blurRadius={10}
+            shadowOpacity={0.5}
+            ambientScale={1.0}
+          />
+        );
+      });
+
+      await act(async () => {
+        triggerFrame();
+      });
+
+      expect(mockGl.getUniformLocation).toHaveBeenCalledWith(expect.anything(), "u_contactPoint");
+      expect(mockGl.uniform2f).toHaveBeenCalledWith("u_contactPoint", 0.1, 0.1);
+      expect(uniforms["u_contactPoint"]).toEqual([0.1, 0.1]);
+
+      await act(async () => {
+        root?.unmount();
+      });
+      container.remove();
+      getContextSpy.mockRestore();
+    });
+
+    it("queries and uploads u_contactPoint with custom and unconstrained coordinates without artificial clamping", async () => {
+      const uniforms: Record<string, unknown> = {};
+      const mockGl = {
+        COLOR_BUFFER_BIT: 16384,
+        VERTEX_SHADER: 35633,
+        FRAGMENT_SHADER: 35632,
+        COMPILE_STATUS: 35713,
+        LINK_STATUS: 35714,
+        ARRAY_BUFFER: 34962,
+        STATIC_DRAW: 35044,
+        FLOAT: 5126,
+        TEXTURE_2D: 3553,
+        RGBA: 6408,
+        UNSIGNED_BYTE: 5121,
+        TEXTURE_WRAP_S: 10242,
+        TEXTURE_WRAP_T: 10243,
+        TEXTURE_MIN_FILTER: 10241,
+        TEXTURE_MAG_FILTER: 10240,
+        CLAMP_TO_EDGE: 33071,
+        LINEAR: 9729,
+        TRIANGLES: 4,
+        BLEND: 3042,
+        SRC_ALPHA: 770,
+        ONE_MINUS_SRC_ALPHA: 771,
+        TEXTURE0: 33984,
+        TEXTURE1: 33985,
+        drawingBufferWidth: 800,
+        drawingBufferHeight: 600,
+        createShader: vi.fn(() => ({})),
+        shaderSource: vi.fn(),
+        compileShader: vi.fn(),
+        getShaderParameter: vi.fn(() => true),
+        createProgram: vi.fn(() => ({})),
+        attachShader: vi.fn(),
+        linkProgram: vi.fn(),
+        getProgramParameter: vi.fn(() => true),
+        createBuffer: vi.fn(() => ({})),
+        bindBuffer: vi.fn(),
+        bufferData: vi.fn(),
+        getAttribLocation: vi.fn(() => 0),
+        enableVertexAttribArray: vi.fn(),
+        vertexAttribPointer: vi.fn(),
+        createTexture: vi.fn(() => ({})),
+        bindTexture: vi.fn(),
+        texImage2D: vi.fn(),
+        texParameteri: vi.fn(),
+        deleteProgram: vi.fn(),
+        deleteTexture: vi.fn(),
+        viewport: vi.fn(),
+        useProgram: vi.fn(),
+        activeTexture: vi.fn(),
+        getUniformLocation: vi.fn((_p, name: string) => name),
+        uniform1i: vi.fn((name: string, val: number) => {
+          uniforms[name] = val;
+        }),
+        uniform1f: vi.fn((name: string, val: number) => {
+          uniforms[name] = val;
+        }),
+        uniform2f: vi.fn((name: string, x: number, y: number) => {
+          uniforms[name] = [x, y];
+        }),
+        uniform3f: vi.fn((name: string, x: number, y: number, z: number) => {
+          uniforms[name] = [x, y, z];
+        }),
+        drawArrays: vi.fn(),
+        clearColor: vi.fn(),
+        clear: vi.fn(),
+        enable: vi.fn(),
+        blendFunc: vi.fn(),
+      };
+
+      const container = mockWindow.document.createElement("div");
+      mockWindow.document.body.appendChild(container);
+
+      const getContextSpy = vi
+        .spyOn(mockWindow.HTMLCanvasElement.prototype, "getContext")
+        .mockImplementation((contextId) => {
+          if (contextId === "webgl") {
+            return mockGl as unknown as MockContextReturn;
+          }
+          return null;
+        });
+
+      let root: ReturnType<typeof createRoot> | null = null;
+      await act(async () => {
+        root = createRoot(container as unknown as HTMLElement);
+        root.render(
+          <WebGlShadowEngine
+            casterImage="/images/caster.png"
+            offsetX={0}
+            offsetY={0}
+            blurRadius={10}
+            shadowOpacity={0.5}
+            ambientScale={1.0}
+            contactPoint={[-0.2, -0.1]}
+          />
+        );
+      });
+
+      await act(async () => {
+        triggerFrame();
+      });
+
+      // Verify unconstrained negative coordinates are preserved without clamping
+      expect(mockGl.getUniformLocation).toHaveBeenCalledWith(expect.anything(), "u_contactPoint");
+      expect(mockGl.uniform2f).toHaveBeenCalledWith("u_contactPoint", -0.2, -0.1);
+      expect(uniforms["u_contactPoint"]).toEqual([-0.2, -0.1]);
+
+      // Re-render with off-canvas positive coordinates
+      await act(async () => {
+        root?.render(
+          <WebGlShadowEngine
+            casterImage="/images/caster.png"
+            offsetX={0}
+            offsetY={0}
+            blurRadius={10}
+            shadowOpacity={0.5}
+            ambientScale={1.0}
+            contactPoint={[1.4, 1.2]}
+          />
+        );
+      });
+
+      await act(async () => {
+        triggerFrame();
+      });
+
+      expect(mockGl.uniform2f).toHaveBeenCalledWith("u_contactPoint", 1.4, 1.2);
+      expect(uniforms["u_contactPoint"]).toEqual([1.4, 1.2]);
+
+      await act(async () => {
+        root?.unmount();
+      });
+      container.remove();
+      getContextSpy.mockRestore();
+    });
   });
 
   describe("3. Canvas2dShadowEngine", () => {
@@ -499,6 +750,74 @@ describe("Transparent Alpha Shadow Synthesis Engines & Zero-Base VRAM Mode", () 
       });
 
       expect(container.querySelector("canvas")).not.toBeNull();
+
+      await act(async () => {
+        root?.unmount();
+      });
+      container.remove();
+      getContextSpy.mockRestore();
+    });
+
+    it("renders cleanly when contactPoint is passed without warnings or errors", async () => {
+      const mockCtx = {
+        clearRect: vi.fn(),
+        drawImage: vi.fn(),
+        save: vi.fn(),
+        restore: vi.fn(),
+        translate: vi.fn(),
+        scale: vi.fn(),
+        fillRect: vi.fn(),
+        fillStyle: "#000000",
+        globalAlpha: 1.0,
+        globalCompositeOperation: "source-over",
+        filter: "none",
+      };
+
+      const container = mockWindow.document.createElement("div");
+      mockWindow.document.body.appendChild(container);
+
+      const getContextSpy = vi
+        .spyOn(mockWindow.HTMLCanvasElement.prototype, "getContext")
+        .mockImplementation((contextId) => {
+          if (contextId === "2d") {
+            return mockCtx as unknown as MockContextReturn;
+          }
+          return null;
+        });
+
+      let root: ReturnType<typeof createRoot> | null = null;
+      await act(async () => {
+        root = createRoot(container as unknown as HTMLElement);
+        root.render(
+          <Canvas2dShadowEngine
+            casterImage="/images/caster.svg"
+            offsetX={10}
+            offsetY={20}
+            blurRadius={25}
+            shadowOpacity={0.8}
+            shadowColor="#223344"
+            ambientScale={1.0}
+            contactPoint={[-0.2, -0.1]}
+          />
+        );
+      });
+
+      expect(container.querySelector("canvas")).not.toBeNull();
+
+      // Also render to string with contactPoint
+      const html = renderToString(
+        <Canvas2dShadowEngine
+          casterImage="/images/caster.svg"
+          offsetX={0}
+          offsetY={0}
+          blurRadius={15}
+          shadowOpacity={0.6}
+          ambientScale={1.0}
+          contactPoint={[0.5, 0.5]}
+        />
+      );
+      expect(html).toContain("bg-transparent");
+      expect(html).toContain("<canvas");
 
       await act(async () => {
         root?.unmount();
