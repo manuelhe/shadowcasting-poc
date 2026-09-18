@@ -29,7 +29,7 @@ flowchart TD
         direction TB
         Checkout1["actions/checkout@v4"]
         SetupPnpm["pnpm/action-setup@v4 (v11)"]
-        SetupNode["actions/setup-node@v4 (Node 20)"]
+        SetupNode["actions/setup-node@v4 (Node 22)"]
         Install["pnpm install --frozen-lockfile"]
         Lint["pnpm lint (ESLint + TypeScript strict)"]
         Test["pnpm test (Vitest: 200+ tests)"]

@@ -134,11 +134,11 @@ describe("CI Quality Gate Workflow Contract (.github/workflows/deploy.yml)", () 
     const pkgManager = pkg.packageManager || "";
     expect(pkgManager).toContain("pnpm@11");
 
-    // Step 3: actions/setup-node with node 20 and pnpm cache
+    // Step 3: actions/setup-node with node 22 and pnpm cache
     const nodeSetupStep = steps.find((s) => s.uses?.startsWith("actions/setup-node"));
     expect(nodeSetupStep).toBeDefined();
     expect(nodeSetupStep?.uses).toBe("actions/setup-node@v4");
-    expect(nodeSetupStep?.with?.["node-version"]).toBe(20);
+    expect(nodeSetupStep?.with?.["node-version"]).toBe(22);
     expect(nodeSetupStep?.with?.cache).toBe("pnpm");
 
     // Step 4: pnpm install with frozen lockfile
@@ -231,7 +231,7 @@ describe("Vercel CLI Deployment Job Contract (.github/workflows/deploy.yml)", ()
     expect(resolveStep?.run).toContain("preview");
   });
 
-  it("configures setup prerequisites: checkout, pnpm v11, node 20 with cache, install, and vercel cli", () => {
+  it("configures setup prerequisites: checkout, pnpm v11, node 22 with cache, install, and vercel cli", () => {
     const steps: WorkflowStep[] = workflow.jobs.deploy.steps;
 
     const checkoutStep = steps.find((s) => s.uses?.startsWith("actions/checkout"));
@@ -245,7 +245,7 @@ describe("Vercel CLI Deployment Job Contract (.github/workflows/deploy.yml)", ()
     const nodeSetupStep = steps.find((s) => s.uses?.startsWith("actions/setup-node"));
     expect(nodeSetupStep).toBeDefined();
     expect(nodeSetupStep?.uses).toBe("actions/setup-node@v4");
-    expect(nodeSetupStep?.with?.["node-version"]).toBe(20);
+    expect(nodeSetupStep?.with?.["node-version"]).toBe(22);
     expect(nodeSetupStep?.with?.cache).toBe("pnpm");
 
     const installStep = steps.find((s) => s.run?.includes("pnpm install"));
