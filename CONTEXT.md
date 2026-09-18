@@ -28,6 +28,10 @@ _Avoid_: Blur radius, feathering
 The optical effect where shadows are sharp near the contact surface and become progressively softer as distance increases.
 _Avoid_: Gradient blur, distance blur
 
+**Contact Point**:
+The normalized coordinate in UV space representing where the shadow caster is anchored closest to the Base Plate substrate, serving as the origin for distance-scaled contact hardening.
+_Avoid_: Anchor coordinate, pivot, root point
+
 **Static Poster Fallback**:
 A single static image rendered during SSR or displayed on low-end devices to eliminate runtime rendering cost and preserve Core Web Vitals.
 _Avoid_: Placeholder, thumbnail, backup image
