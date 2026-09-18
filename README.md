@@ -191,6 +191,16 @@ The POC continuously measures production Web Vitals via the official `web-vitals
 
 ---
 
+## 🚀 CI/CD & Deployment Automation
+
+The repository includes a production-grade GitHub Actions CI/CD deployment pipeline targeting Vercel:
+- **Quality Gate**: Automatic verification executing `pnpm lint` and `pnpm test` across all unit, component, motion physics, and documentation tests.
+- **Preview Deployments**: Automatic prebuilt preview deployment for pull requests with an in-place sticky comment reporting live preview URLs.
+- **Production Deployments**: Automated prebuilt production deployment on push to `main`.
+- **Credential Provisioning Guide**: Complete walkthrough in [CI/CD Deployment Guide: Vercel & GitHub Actions Pipeline](docs/guides/vercel-deployment-pipeline.md).
+
+---
+
 ## 📚 Comprehensive Documentation Index
 
 Explore the in-depth architectural and implementation guides:
@@ -202,6 +212,7 @@ Explore the in-depth architectural and implementation guides:
 - [03: Procedural Komorebi & Foliage Shadows](docs/guides/03-procedural-shadows.md): Math and shader mechanics for 0 KB heap Simplex fBm canopy and parametric branch skeletons.
 - [04: Performance Tiering & Zero-LCP Handover](docs/guides/04-performance-and-degradation.md): 4-tier degradation ladder, WebKit core-clamping heuristics, and cooperative hydration.
 - [05: Custom Motion Physics & Virtual Lighting](docs/guides/05-custom-physics-and-lighting.md): Calibrating semi-implicit Euler springs, 3D perspective vectors, and Base Plate motion modes.
+- [CI/CD Vercel Deployment Pipeline](docs/guides/vercel-deployment-pipeline.md): Complete setup walkthrough for Vercel credentials (token, org, project), environment routing, sticky PR preview comments, and graceful fallback.
 
 ### Architectural Decisions & Domain Model
 - [Domain Context & Ubiquitous Language](CONTEXT.md): Canonical glossary and terminology rules (Base Plate, Shadow Caster, Penumbra, Zero-LCP Floor).

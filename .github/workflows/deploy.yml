@@ -1,0 +1,205 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target deployment environment'
+        required: true
+        default: 'preview'
+        type: choice
+        options:
+          - preview
+          - production
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  quality-gate:
+    name: Quality Gate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run linter
+        run: pnpm lint
+
+      - name: Run test suite
+        run: pnpm test
+
+  deploy:
+    name: Deploy
+    needs: quality-gate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check Vercel credentials
+        id: check-creds
+        run: |
+          if [ -z "$VERCEL_TOKEN" ] || [ -z "$VERCEL_ORG_ID" ] || [ -z "$VERCEL_PROJECT_ID" ]; then
+            echo "can_deploy=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Vercel Credentials::Deployment skipped: required Vercel credentials (VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID) are missing."
+            echo "### ⚠️ Deployment Skipped" >> "$GITHUB_STEP_SUMMARY"
+            echo "Vercel credentials are not configured (one or more of VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID is missing)." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "can_deploy=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Resolve deployment environment
+        id: resolve-env
+        if: steps.check-creds.outputs.can_deploy == 'true'
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "target_env=${{ inputs.environment }}" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            echo "target_env=production" >> "$GITHUB_OUTPUT"
+          else
+            echo "target_env=preview" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup pnpm
+        if: steps.check-creds.outputs.can_deploy == 'true'
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js 22
+        if: steps.check-creds.outputs.can_deploy == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        if: steps.check-creds.outputs.can_deploy == 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Vercel CLI
+        if: steps.check-creds.outputs.can_deploy == 'true'
+        run: npm install --global vercel@latest
+
+      - name: Pull Vercel environment (Preview)
+        if: steps.check-creds.outputs.can_deploy == 'true' && steps.resolve-env.outputs.target_env == 'preview'
+        run: vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Pull Vercel environment (Production)
+        if: steps.check-creds.outputs.can_deploy == 'true' && steps.resolve-env.outputs.target_env == 'production'
+        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Pre-build application (Preview)
+        if: steps.check-creds.outputs.can_deploy == 'true' && steps.resolve-env.outputs.target_env == 'preview'
+        run: vercel build --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Pre-build application (Production)
+        if: steps.check-creds.outputs.can_deploy == 'true' && steps.resolve-env.outputs.target_env == 'production'
+        run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Deploy prebuilt (Preview)
+        id: deploy-preview
+        if: steps.check-creds.outputs.can_deploy == 'true' && steps.resolve-env.outputs.target_env == 'preview'
+        run: |
+          url=$(vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }})
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy prebuilt (Production)
+        id: deploy-production
+        if: steps.check-creds.outputs.can_deploy == 'true' && steps.resolve-env.outputs.target_env == 'production'
+        run: |
+          url=$(vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }})
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      - name: Sticky PR preview comment
+        id: pr-comment
+        if: github.event_name == 'pull_request' && steps.check-creds.outputs.can_deploy == 'true' && steps.deploy-preview.outputs.url != ''
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const marker = '<!-- vercel-preview-deployment-comment -->';
+            const previewUrl = '${{ steps.deploy-preview.outputs.url }}';
+            const commitSha = context.payload.pull_request ? context.payload.pull_request.head.sha : context.sha;
+            const timestamp = new Date().toISOString();
+
+            const body = [
+              marker,
+              '### 🔍 Vercel Preview Deployment',
+              '',
+              `| Status | Preview URL | Commit | Deployed At |`,
+              `| :--- | :--- | :--- | :--- |`,
+              `| Ready ✅ | [${previewUrl}](${previewUrl}) | \`${commitSha.slice(0, 7)}\` | \`${timestamp}\` |`,
+              '',
+              `*Preview URL:* ${previewUrl}`,
+              `*Commit:* \`${commitSha}\``,
+              `*Timestamp:* \`${timestamp}\``,
+              '',
+              '_This comment is automatically maintained by CI/CD workflow._'
+            ].join('\n');
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const existingComment = comments.find((c) => c.body && c.body.includes(marker));
+
+            if (existingComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existingComment.id,
+                body: body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: body,
+              });
+            }
+
+      - name: Write deployment summary
+        if: steps.check-creds.outputs.can_deploy == 'true'
+        run: |
+          if [ "${{ steps.resolve-env.outputs.target_env }}" = "production" ]; then
+            echo "### 🚀 Vercel Production Deployment" >> "$GITHUB_STEP_SUMMARY"
+            echo "Successfully deployed prebuilt artifacts to production." >> "$GITHUB_STEP_SUMMARY"
+            echo "Deployment URL: ${{ steps.deploy-production.outputs.url }}" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "### 🔍 Vercel Preview Deployment" >> "$GITHUB_STEP_SUMMARY"
+            echo "Deployment URL: ${{ steps.deploy-preview.outputs.url }}" >> "$GITHUB_STEP_SUMMARY"
+          fi
