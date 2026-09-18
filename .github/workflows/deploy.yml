@@ -8,6 +8,20 @@ on:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target deployment environment'
+        required: true
+        default: 'preview'
+        type: choice
+        options:
+          - preview
+          - production
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -45,6 +59,10 @@ jobs:
     name: Deploy
     needs: quality-gate
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
     env:
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
@@ -87,36 +105,93 @@ jobs:
         run: npm install --global vercel@latest
 
       - name: Pull Vercel environment (Preview)
-        if: steps.check-creds.outputs.can_deploy == 'true' && github.ref != 'refs/heads/main'
+        if: steps.check-creds.outputs.can_deploy == 'true' && ((github.event_name == 'workflow_dispatch' && inputs.environment == 'preview') || (github.event_name != 'workflow_dispatch' && github.ref != 'refs/heads/main'))
         run: vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
 
       - name: Pull Vercel environment (Production)
-        if: steps.check-creds.outputs.can_deploy == 'true' && github.ref == 'refs/heads/main'
+        if: steps.check-creds.outputs.can_deploy == 'true' && ((github.event_name == 'workflow_dispatch' && inputs.environment == 'production') || (github.event_name != 'workflow_dispatch' && github.ref == 'refs/heads/main'))
         run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
 
       - name: Pre-build application (Preview)
-        if: steps.check-creds.outputs.can_deploy == 'true' && github.ref != 'refs/heads/main'
+        if: steps.check-creds.outputs.can_deploy == 'true' && ((github.event_name == 'workflow_dispatch' && inputs.environment == 'preview') || (github.event_name != 'workflow_dispatch' && github.ref != 'refs/heads/main'))
         run: vercel build --token=${{ secrets.VERCEL_TOKEN }}
 
       - name: Pre-build application (Production)
-        if: steps.check-creds.outputs.can_deploy == 'true' && github.ref == 'refs/heads/main'
+        if: steps.check-creds.outputs.can_deploy == 'true' && ((github.event_name == 'workflow_dispatch' && inputs.environment == 'production') || (github.event_name != 'workflow_dispatch' && github.ref == 'refs/heads/main'))
         run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
 
       - name: Deploy prebuilt (Preview)
         id: deploy-preview
-        if: steps.check-creds.outputs.can_deploy == 'true' && github.ref != 'refs/heads/main'
+        if: steps.check-creds.outputs.can_deploy == 'true' && ((github.event_name == 'workflow_dispatch' && inputs.environment == 'preview') || (github.event_name != 'workflow_dispatch' && github.ref != 'refs/heads/main'))
         run: |
           url=$(vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }})
           echo "url=$url" >> "$GITHUB_OUTPUT"
 
       - name: Deploy prebuilt (Production)
-        if: steps.check-creds.outputs.can_deploy == 'true' && github.ref == 'refs/heads/main'
+        if: steps.check-creds.outputs.can_deploy == 'true' && ((github.event_name == 'workflow_dispatch' && inputs.environment == 'production') || (github.event_name != 'workflow_dispatch' && github.ref == 'refs/heads/main'))
         run: vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Sticky PR preview comment
+        id: pr-comment
+        if: github.event_name == 'pull_request' && steps.check-creds.outputs.can_deploy == 'true' && steps.deploy-preview.outputs.url != ''
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const marker = '<!-- vercel-preview-deployment-comment -->';
+            const previewUrl = '${{ steps.deploy-preview.outputs.url }}';
+            const commitSha = context.payload.pull_request ? context.payload.pull_request.head.sha : context.sha;
+            const timestamp = new Date().toISOString();
+
+            const body = [
+              marker,
+              '### 🔍 Vercel Preview Deployment',
+              '',
+              `| Status | Preview URL | Commit | Deployed At |`,
+              `| :--- | :--- | :--- | :--- |`,
+              `| Ready ✅ | [${previewUrl}](${previewUrl}) | \`${commitSha.slice(0, 7)}\` | \`${timestamp}\` |`,
+              '',
+              `*Preview URL:* ${previewUrl}`,
+              `*Commit:* \`${commitSha}\``,
+              `*Timestamp:* \`${timestamp}\``,
+              '',
+              '_This comment is automatically maintained by CI/CD workflow._'
+            ].join('\n');
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const existingComment = comments.find((c) => c.body && c.body.includes(marker));
+
+            if (existingComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existingComment.id,
+                body: body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: body,
+              });
+            }
 
       - name: Write deployment summary
         if: steps.check-creds.outputs.can_deploy == 'true'
         run: |
-          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+          DEPLOY_ENV="preview"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            DEPLOY_ENV="${{ inputs.environment }}"
+          elif [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            DEPLOY_ENV="production"
+          fi
+
+          if [ "$DEPLOY_ENV" = "production" ]; then
             echo "### 🚀 Vercel Production Deployment" >> "$GITHUB_STEP_SUMMARY"
             echo "Successfully deployed prebuilt artifacts to production." >> "$GITHUB_STEP_SUMMARY"
           else
